@@ -86,8 +86,7 @@ class CommandLineInterface(cmd.Cmd):
         print("First I need to know which file to use!")
         self.onecmd("help use")
 
-    @staticmethod
-    def emptyline():
+    def emptyline(self):
         """
         Scold the user for entering an empty command.
         """
