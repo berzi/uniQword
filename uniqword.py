@@ -99,7 +99,7 @@ class CommandLineInterface(cmd.Cmd):
         Scold the user for writing an unrecognised command.
         """
 
-        print(f"I don't of a command called \"{line}\". Please type help or ? to read a list of commands.")
+        print(f"I don't know of a command called \"{line}\". Please type help or ? to read a list of commands.")
 
     def do_use(self, file_path: str):
         """
