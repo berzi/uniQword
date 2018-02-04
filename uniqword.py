@@ -24,17 +24,14 @@ class WordsFile:
         """
 
         all_words = []
-        try:
-            with codecs.open(self.file_path) as file:
-                # Flatten all lines, replace breaks with spaces and encode to UTF-8.
-                contents = " ".join(file.read().splitlines())
-                contents = contents.split(" ")  # Separate words.
-                for word in filter(lambda w: w != "", contents):  # Filter out "empty" words.
-                    word = [char for char in word if char.isalnum()]  # Get all alphanumeric characters.
-                    # Join together all letters of the word again and make a list of words.
-                    all_words.append("".join(word))
-        except ValueError:
-            raise ValueError
+        with codecs.open(self.file_path) as file:
+            # Flatten all lines, replace breaks with spaces and encode to UTF-8.
+            contents = " ".join(file.read().splitlines())
+            contents = contents.split(" ")  # Separate words.
+            for word in filter(lambda w: w != "", contents):  # Filter out "empty" words.
+                word = [char for char in word if char.isalnum()]  # Get all alphanumeric characters.
+                # Join together all letters of the word again and make a list of words.
+                all_words.append("".join(word))
 
         self.all_words = all_words
 
