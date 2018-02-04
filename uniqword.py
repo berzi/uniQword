@@ -157,10 +157,11 @@ class CommandLineInterface(cmd.Cmd):
         elif target in ["unique", "uniques", "unique words"]:
             amount = self.file.count_unique_words()
             print(f"The file contains: {amount:d} word{'' if amount == 1 else 's'} in total.")
-        elif target.split(" ")[0] in ["w", "word"] and target.split(" ")[1]:
+        elif target.split(" ")[0] and target.split(" ")[0] in ["w", "word"] and target.split(" ")[1]:
+            # TODO: Fix this IndexError
             amount = self.file.count_word(target.split(" ")[1])
             print(f"The file contains: {amount:d} instance{'' if amount == 1 else 's'}"
-                  f" of the word \"{target}\".")
+                  f" of the word \"{target.split(' ')[1]}\".")
         else:
             print("Please specify something to count!")
             self.onecmd("help count")
