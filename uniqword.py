@@ -29,7 +29,7 @@ class WordsFile:
             contents = " ".join(file.read().splitlines())
             contents = contents.split(" ")  # Separate words.
             for word in filter(lambda w: w != "", contents):  # Filter out "empty" words.
-                word = [char for char in word if char.isalnum()]  # Get all alphanumeric characters.
+                word = [char for char in word if char.isalnum() or char == "-"]  # Get all alphanumeric characters.
                 # Join together all letters of the word again and make a list of words.
                 all_words.append("".join(word))
 
@@ -139,30 +139,31 @@ class CommandLineInterface(cmd.Cmd):
     def do_count(self, target: str):
         """
         Count how many of the specified element the file contains. You can count: *words, *unique words, specific words.
-        The * asterisks are important!
+        To count specific words, write word, then the word you want to count.
             Examples:
-                uniQword, count *words
-                uniQword, count *unique words
-                uniQword, count banana
+                uniQword, count words
+                uniQword, count unique words
+                uniQword, count word banana
+                uniQword, count w banana
         """
 
         if not self.file:
             self.no_file()
             return
 
-        if target == "":
-            print("Please specify something to count!")
-            self.onecmd("help count")
-        elif target in ["*", "*words"]:
+        if target in ["*", "words"]:
             amount = self.file.count_all_words()
             print(f"The file contains: {amount:d} word{'' if amount == 1 else 's'} in total.")
-        elif target in ["*unique", "*uniques", "*unique words"]:
+        elif target in ["unique", "uniques", "unique words"]:
             amount = self.file.count_unique_words()
             print(f"The file contains: {amount:d} word{'' if amount == 1 else 's'} in total.")
-        else:
-            amount = self.file.count_word(target)
+        elif target.split(" ")[0] in ["w", "word"] and target.split(" ")[1]:
+            amount = self.file.count_word(target.split(" ")[1])
             print(f"The file contains: {amount:d} instance{'' if amount == 1 else 's'}"
                   f" of the word \"{target}\".")
+        else:
+            print("Please specify something to count!")
+            self.onecmd("help count")
 
     @staticmethod
     def do_bye(arg):
