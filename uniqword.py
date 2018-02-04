@@ -86,19 +86,21 @@ class CommandLineInterface(cmd.Cmd):
         print("First I need to know which file to use!")
         self.onecmd("help use")
 
-    def emptyline(self):
+    @staticmethod
+    def emptyline():
         """
         Scold the user for entering an empty command.
         """
 
         print("No idea what to do? Type help or ? to see a list of commands.")
 
-    def default(self, line):
+    @staticmethod
+    def default(line, **kwargs):
         """
         Scold the user for writing an unrecognised command.
         """
 
-        print("I don't of a command called \"%s\". Please type help or ? to read a list of commands." % line)
+        print(f"I don't of a command called \"{line}\". Please type help or ? to read a list of commands.")
 
     def do_use(self, file_path: str):
         """
@@ -109,7 +111,7 @@ class CommandLineInterface(cmd.Cmd):
         try:
             self.file = WordsFile(file_path)
 
-            print("I selected the file: %s." % file_path)
+            print(f"I selected the file: {file_path}.")
         except FileNotFoundError:
             print("I couldn't find the file you asked for. Please try again.")
         except ValueError:
@@ -127,13 +129,13 @@ class CommandLineInterface(cmd.Cmd):
             self.no_file()
             return
 
-        if target == "":
+        if not target:
             print("Please specify something to list!")
             self.onecmd("help list")
         elif target == "words":
-            print("Here are all the words in the file:\n%s" % self.file.all_words)
+            print(f"Here are all the words in the file:\n{self.file.all_words}")
         elif target in ["unique", "uniques", "unique words"]:
-            print("Here are all the unique words in the file:\n%s" % self.file.get_unique_words())
+            print(f"Here are all the unique words in the file:\n{self.file.get_unique_words()}")
 
     def do_count(self, target: str):
         """
@@ -154,22 +156,14 @@ class CommandLineInterface(cmd.Cmd):
             self.onecmd("help count")
         elif target in ["*", "*words"]:
             amount = self.file.count_all_words()
-            plural = "s"
-            if amount == 1:
-                plural = ""
-            print("The file contains: %i word%s in total." % (amount, plural))
+            print(f"The file contains: {amount:d} word{'' if len(amount) == 1 else 's'} in total.")
         elif target in ["*unique", "*uniques", "*unique words"]:
             amount = self.file.count_unique_words()
-            plural = "s"
-            if amount == 1:
-                plural = ""
-            print("The file contains: %i unique word%s in total." % (amount, plural))
+            print(f"The file contains: {amount:d} word{'' if len(amount) == 1 else 's'} in total.")
         else:
             amount = self.file.count_word(target)
-            plural = "s"
-            if amount == 1:
-                plural = ""
-            print("The file contains: %i instance%s of the word \"%s\"." % (amount, plural, target))
+            print(f"The file contains: {amount:d} instance{'' if len(amount) == 1 else 's'}"
+                  f" of the word \"{target}\".")
 
     @staticmethod
     def do_bye(arg):
