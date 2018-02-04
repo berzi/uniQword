@@ -155,13 +155,13 @@ class CommandLineInterface(cmd.Cmd):
             self.onecmd("help count")
         elif target in ["*", "*words"]:
             amount = self.file.count_all_words()
-            print(f"The file contains: {amount:d} word{'' if len(amount) == 1 else 's'} in total.")
+            print(f"The file contains: {amount:d} word{'' if amount == 1 else 's'} in total.")
         elif target in ["*unique", "*uniques", "*unique words"]:
             amount = self.file.count_unique_words()
-            print(f"The file contains: {amount:d} word{'' if len(amount) == 1 else 's'} in total.")
+            print(f"The file contains: {amount:d} word{'' if amount == 1 else 's'} in total.")
         else:
             amount = self.file.count_word(target)
-            print(f"The file contains: {amount:d} instance{'' if len(amount) == 1 else 's'}"
+            print(f"The file contains: {amount:d} instance{'' if amount == 1 else 's'}"
                   f" of the word \"{target}\".")
 
     @staticmethod
