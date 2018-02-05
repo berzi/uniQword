@@ -2,6 +2,18 @@ import cmd
 import time
 import codecs
 import PyPDF2
+import os
+import shutil
+import tempdir
+import subprocess
+
+
+class DecryptionError(Exception):
+    """
+    Catches the event in which an encrypted file is provided with a wrong password or none at all.
+    """
+
+    pass
 
 
 class WordsFile:
@@ -10,13 +22,18 @@ class WordsFile:
     """
 
     file_words = []
+    password = ""
 
-    def __init__(self, file_path: str):
+    def __init__(self, file_path: str, password: str):
         """
         Initialise the file instance by storing a list of all words.
         :param file_path: the file path and name.
         """
+
         self.file_path = file_path
+        if password:
+            self.password = password
+
         self.store_all_words()
 
     def store_all_words(self):
@@ -30,6 +47,30 @@ class WordsFile:
         if self.file_path.endswith(".pdf"):
             with open(self.file_path, "rb") as pdf:
                 reader = PyPDF2.PdfFileReader(pdf)  # Create a PDF handler.
+                if reader.isEncrypted and self.password:
+                    try:
+                        # Try to open the file with the given password.
+                        if reader.decrypt(self.password) == 0:
+                            # If the password is wrong, raise an exception for the UI to handle.
+                            raise DecryptionError
+                    except NotImplementedError:
+                        # If PyPDF can't handle the encryption algorithm, do it with a subprocess call.
+                        # Thanks to GitHub user ssokolow for this bit.
+                        # Make a temporary directory and file to work with safely.
+                        # TODO: No idea why it seems to raise a FileNotFound exception.
+                        temporary_directory = tempdir.tempfile.mkdtemp(dir=os.path.dirname(self.file_path))
+                        temporary_pdf = os.path.join(temporary_directory, '_temp.pdf')
+
+                        subprocess.check_call(['qpdf', f"--password=", '--decrypt',
+                                               self.file_path, temporary_pdf])
+
+                        shutil.move(temporary_pdf, self.file_path)
+
+                        # Clean up the temporary dir.
+                        shutil.rmtree(temporary_directory)
+                elif reader.isEncrypted and not self.password:
+                    raise DecryptionError
+
                 for page in range(reader.numPages):
                     current_page = reader.getPage(page)  # Get one page at a time.
                     contents += current_page.extractText()  # Store the contents
@@ -133,20 +174,30 @@ class CommandLineInterface(cmd.Cmd):
 
         print(f"I don't know of a command called \"{line}\". Please type help or ? to read a list of commands.")
 
-    def do_use(self, file_path: str):
+    def do_use(self, user_entry: str):
         """
         Select a file to operate on.
             Example: uniQword, use myfile.txt
         """
 
+        password = ""
         try:
-            self.file = WordsFile(file_path)
+            file, password = user_entry.split(" ")[0], user_entry.split(" ")[1]
+        except IndexError:
+            file = user_entry
 
-            print(f"I selected the file: {file_path}.")
+        try:
+            self.file = WordsFile(file, password)
+
+            print(f"I selected the file: {user_entry}.")
         except FileNotFoundError:
             print("I couldn't find the file you asked for. Please try again.")
         except ValueError:
             print("I couldn't decode the given file. Please save it in UTF-8 or try another file.")
+        except DecryptionError:
+            print("I need the correct password for this file!\n"
+                  "Leave an empty space after the file name and type the password, example:\n"
+                  "Qword, use myfile.txt myp@ssw0rd")
 
     def do_list(self, target: str):
         """
