@@ -9,6 +9,7 @@ A simple program to count all the (unique) words contained in a text file and pe
 - Process multiple files/directories at once.
 - Frequency list for words.
 - Statistical data on words.
+- Better support for file types that include layout.
 
 # Supported formats:
 - Plain text (`txt` etc).
