@@ -1,6 +1,7 @@
 import cmd
 import time
 import codecs
+import PyRTF
 
 
 class WordsFile:
@@ -177,6 +178,10 @@ class CommandLineInterface(cmd.Cmd):
         print("See you, space cowboy!")
         time.sleep(2)
         exit()
+
+    def do_test(self, arg):
+        file = PyRTF.RTFFile(arg)
+        print(file)
 
 
 if __name__ == "__main__":
