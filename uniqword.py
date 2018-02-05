@@ -1,7 +1,7 @@
 import cmd
 import time
 import codecs
-import PyRTF
+import PyPDF2
 
 
 class WordsFile:
@@ -9,7 +9,7 @@ class WordsFile:
     Manage the file and collect and enumerate the words it contains.
     """
 
-    all_words = []
+    file_words = []
 
     def __init__(self, file_path: str):
         """
@@ -25,41 +25,71 @@ class WordsFile:
         """
 
         all_words = []
-        with codecs.open(self.file_path) as file:
-            # Flatten all lines, replace breaks with spaces and encode to UTF-8.
-            contents = " ".join(file.read().splitlines())
-            contents = contents.split(" ")  # Separate words.
-            for word in filter(lambda w: w != "", contents):  # Filter out "empty" words.
-                word = [char for char in word if char.isalnum() or char == "-"]  # Get all alphanumeric characters.
-                # Join together all letters of the word again and make a list of words.
-                all_words.append("".join(word))
+        contents = ""
 
-        self.all_words = all_words
+        if self.file_path.endswith(".pdf"):
+            with open(self.file_path, "rb") as pdf:
+                reader = PyPDF2.PdfFileReader(pdf)  # Create a PDF handler.
+                for page in range(reader.numPages):
+                    current_page = reader.getPage(page)  # Get one page at a time.
+                    contents += current_page.extractText()  # Store the contents
+        else:
+            with codecs.open(self.file_path) as file:
+                contents = file.read()
+
+        # Get all to lowercase. This is useful to count unique words, and we don't need case sensitiveness anyway.
+        contents = contents.lower()
+
+        # Get individual lines.
+        contents = contents.splitlines()
+
+        if self.file_path.endswith(".pdf"):
+            # Eliminate the fake line breaks PDFs have.
+            contents = "".join(contents)
+            # Real line breaks in PDFs automatically get some whitespace, so we don't need to join words using it.
+        else:
+            # Join all words and lines with whitespace, which we'll use to separate individual words.
+            contents = " ".join(contents)
+
+        # Separate words.
+        contents = contents.split(" ")
+
+        # Filter out "empty" words and filter characters inside words to make sure we only get real(istic) words.
+        for word in filter(lambda w: w != "", contents):
+            # Get all alphanumeric characters, plus hyphens and underscores.
+            word = [char for char in word if char.isalnum() or char in ["-", "_"]]
+
+            # Remove hyphens at start or end.
+            if word[0] == "-":
+                word.pop(0)
+            if word[-1] == "-":
+                word.pop(-1)
+
+            # Join together all letters of the word again and make a list of words.
+            all_words.append("".join(word))
+
+        self.file_words = all_words
 
     def get_unique_words(self) -> set:
         """
-        :return: a set of the unique words in the chosen file. Case insensitive.
+        :return: a set of the unique words in the chosen file.
         """
 
-        words = []
-        for word in self.all_words:
-            words.append(word.lower())
-
-        return set(words)
+        return set(self.file_words)
 
     def count_all_words(self) -> int:
         """
         :return: the count of all words in the chosen file.
         """
 
-        return len(self.all_words)
+        return len(self.file_words)
 
     def count_word(self, word: str) -> int:
         """
         :param word: the word to count the occurrences of.
         :return: the count of the occurrences of word in the chosen file.
         """
-        return self.all_words.count(word)
+        return self.file_words.count(word)
 
     def count_unique_words(self) -> int:
         """
@@ -134,7 +164,7 @@ class CommandLineInterface(cmd.Cmd):
             print("Please specify something to list!")
             self.onecmd("help list")
         elif target == "words":
-            print(f"Here are all the words in the file:\n{self.file.all_words}")
+            print(f"Here are all the words in the file:\n{self.file.file_words}")
         elif target in ["unique", "uniques", "unique words"]:
             print(f"Here are all the unique words in the file:\n{self.file.get_unique_words()}")
 
@@ -180,8 +210,7 @@ class CommandLineInterface(cmd.Cmd):
         exit()
 
     def do_test(self, arg):
-        file = PyRTF.RTFFile(arg)
-        print(file)
+        pass
 
 
 if __name__ == "__main__":
