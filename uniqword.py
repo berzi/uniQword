@@ -1,11 +1,13 @@
-import cmd
-import time
-import codecs
-import PyPDF2
-import os
+import cmd  # Used for the command-line interface.
+import time  # Used by the command-line interface for sleep() when bidding farewell to the user.
+import codecs  # Used to avoid codec problems when reading files.
+import PyPDF2  # Used to read PDF files.
+import os  # This and following: used to decode problematic passworded PDFs.
 import shutil
 import tempdir
 import subprocess
+import collections  # Used for frequency counts.
+import operator  # Used for itemgetter() to optimise reverse operations.
 
 
 class DecryptionError(Exception):
@@ -109,7 +111,7 @@ class WordsFile:
             # Join together all letters of the word again and make a list of words.
             all_words.append("".join(word))
 
-        self.file_words = all_words
+        self.file_words = all_words  # Store the list of words in an instance attribute for easy and cheap access.
 
     def get_unique_words(self) -> set:
         """
@@ -138,6 +140,19 @@ class WordsFile:
         """
 
         return len(self.get_unique_words())
+
+    def get_frequency(self) -> collections.Counter:
+        """
+        Get  the frequency list of all words in the file.
+        :return: a counter ["word"] = occurrences in descending order.
+        """
+
+        frequency_counter = collections.Counter()
+
+        for word in self.file_words:
+            frequency_counter[word] += 1
+
+        return frequency_counter.most_common()
 
 
 class CommandLineInterface(cmd.Cmd):
@@ -172,7 +187,8 @@ class CommandLineInterface(cmd.Cmd):
         Scold the user for writing an unrecognised command.
         """
 
-        print(f"I don't know of a command called \"{line}\". Please type help or ? to read a list of commands.")
+        print(f"I don't know of a command called \"{line}\".")
+        CommandLineInterface.emptyline()
 
     def do_use(self, user_entry: str):
         """
@@ -201,9 +217,11 @@ class CommandLineInterface(cmd.Cmd):
 
     def do_list(self, target: str):
         """
-        Print a list of all requested elements (it can be long!). You can list: words, unique words.
+        Print a list of all requested elements in the current file (it can be long!).
+        You can request: words, unique words.
             Examples:
                 uniQword, list words
+                uniQword, list unique words
                 uniQword, list uniques
         """
 
@@ -214,10 +232,12 @@ class CommandLineInterface(cmd.Cmd):
         if not target:
             print("Please specify something to list!")
             self.onecmd("help list")
-        elif target == "words":
-            print(f"Here are all the words in the file:\n{self.file.file_words}")
-        elif target in ["unique", "uniques", "unique words"]:
-            print(f"Here are all the unique words in the file:\n{self.file.get_unique_words()}")
+        elif target in ["w", "words"]:
+            print(f"Here are all the words in the file:\n"
+                  f"{self.file.file_words}")
+        elif target in ["u", "unique", "uniques", "unique words"]:
+            print(f"Here are all the unique words in the file:\n"
+                  f"{self.file.get_unique_words()}")
 
     def do_count(self, target: str):
         """
@@ -247,6 +267,27 @@ class CommandLineInterface(cmd.Cmd):
         else:
             print("Please specify something to count!")
             self.onecmd("help count")
+
+    def do_frequency(self, order: str=""):
+        """
+        Print the frequency list of the current file. Can be printed in reverse.
+            Examples:
+                uniQword, frequency
+                uniQword, frequency reversed
+        """
+
+        if not self.file:
+            self.no_file()
+            return
+        is_reversed = False
+        frequency = self.file.get_frequency()
+
+        if order in ["r", "reverse", "reversed"]:
+            is_reversed = True
+            frequency = sorted(list(frequency), key=operator.itemgetter(1))
+
+        print(f"Here is the frequency list of the file{', reversed' if is_reversed else ''}:\n"
+              f"{frequency}")
 
     @staticmethod
     def do_bye(arg):
