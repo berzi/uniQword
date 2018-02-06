@@ -14,8 +14,9 @@ A simple program to count all the (unique) words contained in a text file and pe
 # Supported formats:
 - Plain text (`txt` etc).
 - `PDF` (including encrypted).
+- `docx`.
 
 ## Planned formats:
+- `docx` (including encrypted).
 - `doc`.
-- `docx`.
 - `odt`.

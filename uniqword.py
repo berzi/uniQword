@@ -2,6 +2,7 @@ import cmd  # Used for the command-line interface.
 import time  # Used by the command-line interface for sleep() when bidding farewell to the user.
 import codecs  # Used to avoid codec problems when reading files.
 import PyPDF2  # Used to read PDF files.
+import docx  # Used to read Microsoft Word files.
 import os  # This and following: used to decode problematic passworded PDFs.
 import shutil
 import tempdir
@@ -76,6 +77,10 @@ class WordsFile:
                 for page in range(reader.numPages):
                     current_page = reader.getPage(page)  # Get one page at a time.
                     contents += current_page.extractText()  # Store the contents
+        elif self.file_path.endswith(".docx"):
+            raw_document = docx.Document(self.file_path)
+            for paragraph in raw_document.paragraphs:
+                contents += paragraph.text
         else:
             with codecs.open(self.file_path) as file:
                 contents = file.read()
