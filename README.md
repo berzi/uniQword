@@ -18,5 +18,4 @@ A simple program to count all the (unique) words contained in a text file and pe
 
 ## Planned formats:
 - `docx` (including encrypted).
-- `doc`.
 - `odt`.

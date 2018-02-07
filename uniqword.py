@@ -2,7 +2,7 @@ import cmd  # Used for the command-line interface.
 import time  # Used by the command-line interface for sleep() when bidding farewell to the user.
 import codecs  # Used to avoid codec problems when reading files.
 import PyPDF2  # Used to read PDF files.
-import docx  # Used to read Microsoft Word files.
+import docx  # Used to read docx files.
 import os  # This and following: used to decode problematic passworded PDFs.
 import shutil
 import tempdir
