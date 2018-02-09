@@ -3,6 +3,8 @@ import time  # Used by the command-line interface for sleep() when bidding farew
 import codecs  # Used to avoid codec problems when reading files.
 import PyPDF2  # Used to read PDF files.
 import docx  # Used to read docx files.
+import zipfile  # Used to read odt files.
+from lxml import etree  # This too.
 import os  # This and following: used to decode problematic passworded PDFs.
 import shutil
 import tempdir
@@ -76,11 +78,19 @@ class WordsFile:
 
                 for page in range(reader.numPages):
                     current_page = reader.getPage(page)  # Get one page at a time.
-                    contents += current_page.extractText()  # Store the contents
+                    contents += current_page.extractText()  # Store the contents.
         elif self.file_path.endswith(".docx"):
             raw_document = docx.Document(self.file_path)
             for paragraph in raw_document.paragraphs:
                 contents += paragraph.text
+        elif self.file_path.endswith(".odt"):
+            odt = zipfile.ZipFile(self.file_path)  # Open the file like a zip archive.
+            # Get the content and take only the raw text.
+            with odt.open('content.xml') as content:
+                for child in etree.parse(content).iter():
+                    if "text" in child.tag and child.text is not None:
+                        # Add each tag's text to the context plus a line break to ensure words don't end up joined.
+                        contents += child.text+"\n"
         else:
             with codecs.open(self.file_path) as file:
                 contents = file.read()
@@ -259,10 +269,10 @@ class CommandLineInterface(cmd.Cmd):
             self.no_file()
             return
 
-        if target in ["*", "words"]:
+        if target in ["*", "words", "w"]:
             amount = self.file.count_all_words()
             print(f"The file contains: {amount:d} word{'' if amount == 1 else 's'} in total.")
-        elif target in ["unique", "uniques", "unique words"]:
+        elif target in ["unique", "uniques", "unique words", "u"]:
             amount = self.file.count_unique_words()
             print(f"The file contains: {amount:d} word{'' if amount == 1 else 's'} in total.")
         elif " " in target and target.split(" ")[0] in ["w", "word", "specific word"]:
