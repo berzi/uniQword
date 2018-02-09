@@ -232,27 +232,56 @@ class CommandLineInterface(cmd.Cmd):
 
     def do_list(self, target: str):
         """
-        Print a list of all requested elements in the current file (it can be long!).
+        Print a list of all requested elements in the current file in no particular order (it can be long!).
         You can request: words, unique words.
             Examples:
                 uniQword, list words
                 uniQword, list unique words
                 uniQword, list uniques
+                uniQword, list w
+                uniQword, list u
         """
 
         if not self.file:
             self.no_file()
             return
 
+        output = ""
+
         if not target:
             print("Please specify something to list!")
             self.onecmd("help list")
+            return
         elif target in ["w", "words"]:
-            print(f"Here are all the words in the file:\n"
-                  f"{self.file.file_words}")
+            line = ""
+            for index, word in enumerate(self.file.file_words):
+                line += word
+                if len(line) <= 70:  # Limit the line length to 70 chars.
+                    line += ", "
+                elif index == len(self.file.file_words) - 1:  # If we're done adding words.
+                    output += line
+                else:
+                    line += "\n"
+                    output += line
+                    line = ""
+
+            output = f"Here are all the words in the file:\n{output}"
         elif target in ["u", "unique", "uniques", "unique words"]:
-            print(f"Here are all the unique words in the file:\n"
-                  f"{self.file.get_unique_words()}")
+            line = ""
+            for index, word in enumerate(self.file.get_unique_words()):
+                line += word
+                if len(line) <= 70:  # Limit the line length to 70 chars.
+                    line += ", "
+                elif index == len(self.file.get_unique_words()) - 1:  # If we're done adding words.
+                    output += line
+                else:
+                    line += "\n"
+                    output += line
+                    line = ""
+
+            output = f"Here are all the unique words in the file:\n{output}"
+
+        print(output)
 
     def do_count(self, target: str):
         """
@@ -296,13 +325,21 @@ class CommandLineInterface(cmd.Cmd):
             return
         is_reversed = False
         frequency = self.file.get_frequency()
+        output = ""
 
+        # Reverse the list if necessary.
         if order in ["r", "reverse", "reversed"]:
             is_reversed = True
             frequency = sorted(list(frequency), key=operator.itemgetter(1))
 
+        # Format the output to be easier on the eyes.
+        for entry in frequency:
+            # Calculate how many tabs to put in depending on the length of the word.
+            tabs = "\t" * (5 - (len(entry[0])+1) // 4)
+            output += f"{entry[0]}:{tabs}{entry[1]}\n"
+
         print(f"Here is the frequency list of the file{', reversed' if is_reversed else ''}:\n"
-              f"{frequency}")
+              f"{output}")
 
     @staticmethod
     def do_bye(arg):
