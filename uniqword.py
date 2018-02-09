@@ -113,7 +113,7 @@ class WordsFile:
         contents = contents.split(" ")
 
         # Filter out "empty" words and filter characters inside words to make sure we only get real(istic) words.
-        for word in filter(lambda w: w != "", contents):
+        for word in filter(lambda w: w not in ["", "\n"], contents):
             # Get all alphanumeric characters, plus hyphens and underscores.
             word = [char for char in word if char.isalnum() or char in ["-", "_"]]
 
@@ -256,28 +256,28 @@ class CommandLineInterface(cmd.Cmd):
             line = ""
             for index, word in enumerate(self.file.file_words):
                 line += word
-                if len(line) <= 70:  # Limit the line length to 70 chars.
-                    line += ", "
-                elif index == len(self.file.file_words) - 1:  # If we're done adding words.
-                    output += line
-                else:
+                if len(line) >= 72:  # Limit the line length of each line to 72 chars.
                     line += "\n"
                     output += line
                     line = ""
+                elif index == len(self.file.file_words) - 1:  # If we're done adding words.
+                    output += line
+                else:  # Add a comma.
+                    line += ", "
 
             output = f"Here are all the words in the file:\n{output}"
         elif target in ["u", "unique", "uniques", "unique words"]:
             line = ""
             for index, word in enumerate(self.file.get_unique_words()):
                 line += word
-                if len(line) <= 70:  # Limit the line length to 70 chars.
-                    line += ", "
-                elif index == len(self.file.get_unique_words()) - 1:  # If we're done adding words.
-                    output += line
-                else:
+                if len(line) >= 72:  # Limit the line length of each line to 72 chars.
                     line += "\n"
                     output += line
                     line = ""
+                elif index == len(self.file.get_unique_words()) - 1:  # If we're done adding words.
+                    output += line
+                else:  # Add a comma.
+                    line += ", "
 
             output = f"Here are all the unique words in the file:\n{output}"
 
@@ -323,6 +323,7 @@ class CommandLineInterface(cmd.Cmd):
         if not self.file:
             self.no_file()
             return
+
         is_reversed = False
         frequency = self.file.get_frequency()
         output = ""
