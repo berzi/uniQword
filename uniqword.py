@@ -5,10 +5,10 @@ import PyPDF2  # Used to read PDF files.
 import docx  # Used to read docx files.
 import zipfile  # Used to read odt files.
 from lxml import etree  # This too.
-import os  # This and following: used to decode problematic passworded PDFs.
-import shutil
-import tempdir
-import subprocess
+# import os  # This and following: used to decode problematic passworded PDFs.
+# import shutil
+# import tempdir
+# import subprocess
 import collections  # Used for frequency counts.
 import operator  # Used for itemgetter() to optimise reverse operations.
 
@@ -63,16 +63,18 @@ class WordsFile:
                         # Thanks to GitHub user ssokolow for this bit.
                         # Make a temporary directory and file to work with safely.
                         # TODO: No idea why it seems to raise a FileNotFound exception.
-                        temporary_directory = tempdir.tempfile.mkdtemp(dir=os.path.dirname(self.file_path))
-                        temporary_pdf = os.path.join(temporary_directory, '_temp.pdf')
+                        # temporary_directory = tempdir.tempfile.mkdtemp(dir=os.path.dirname(self.file_path))
+                        # temporary_pdf = os.path.join(temporary_directory, '_temp.pdf')
 
-                        subprocess.check_call(['qpdf', f"--password=", '--decrypt',
-                                               self.file_path, temporary_pdf])
+                        # subprocess.check_call(['qpdf', f"--password=", '--decrypt',
+                        #                        self.file_path, temporary_pdf])
 
-                        shutil.move(temporary_pdf, self.file_path)
+                        # shutil.move(temporary_pdf, self.file_path)
 
                         # Clean up the temporary dir.
-                        shutil.rmtree(temporary_directory)
+                        # shutil.rmtree(temporary_directory)
+
+                        raise NotImplementedError  # For now, just pass the exception for the UI to handle.
                 elif reader.isEncrypted and not self.password:
                     raise DecryptionError
 
@@ -224,11 +226,13 @@ class CommandLineInterface(cmd.Cmd):
         except FileNotFoundError:
             print("I couldn't find the file you asked for. Please try again.")
         except ValueError:
-            print("I couldn't decode the given file. Please save it in UTF-8 or try another file.")
+            print("I couldn't decode the file. Please save it in UTF-8 before retrying.")
         except DecryptionError:
             print("I need the correct password for this file!\n"
                   "Leave an empty space after the file name and type the password, example:\n"
                   "Qword, use myfile.txt myp@ssw0rd")
+        except NotImplementedError:
+            print("I couldn't decrypt the file. Please use a non-passworded copy before retrying.")
 
     def do_list(self, target: str):
         """
