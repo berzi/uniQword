@@ -246,11 +246,17 @@ class FilesCollection:
         self.add_files(*files)
 
     def __repr__(self):
-        files = ""
-        for file in self.files.values():
-            files += "\n"+file
+        if len(self.files):
+            files = "\n".join(self.files.values())
+            return f"{self.__class__.__name__}:\n{files}"
 
-        return f"{self.__class__.__name__}:{files}"
+        return f"{self.__class__.__name__}"
+
+    def __str__(self):
+        if len(self.files):
+            return "\n".join(self.files.values())
+
+        return "Empty file collection."
 
     def reset_values(self):
         """
