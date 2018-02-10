@@ -28,6 +28,7 @@ class WordsFile:
     """
 
     file_words = []
+    file_path = ""
 
     # Attributes to optimise performance in case of repeated calls.
     words_count = None
@@ -49,6 +50,9 @@ class WordsFile:
             self.password = password
 
         self.store_all_words()
+
+    def __repr__(self):
+        return f"{self.__class__.__name__}: {self.file_path}"
 
     def __bool__(self):
         """
@@ -240,6 +244,13 @@ class FilesCollection:
             return
 
         self.add_files(*files)
+
+    def __repr__(self):
+        files = ""
+        for file in self.files.values():
+            files += "\n"+file
+
+        return f"{self.__class__.__name__}:{files}"
 
     def reset_values(self):
         """
