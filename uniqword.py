@@ -1,3 +1,4 @@
+from typing import Optional
 import cmd  # Used for the command-line interface.
 import time  # Used by the command-line interface for sleep() when bidding farewell to the user.
 import codecs  # Used to avoid codec problems when reading files.
@@ -27,12 +28,20 @@ class WordsFile:
     """
 
     file_words = []
+
+    # Attributes to optimise performance in case of repeated calls.
+    words_count = None
+    uniques_count = None
+    specific_count = {}
+    frequency_list = None
+
     password = ""
 
     def __init__(self, file_path: str, password: str):
         """
         Initialise the file instance by storing a list of all words.
         :param file_path: the file path and name.
+        :param password: the password provided for the file, if given.
         """
 
         self.file_path = file_path
@@ -40,6 +49,14 @@ class WordsFile:
             self.password = password
 
         self.store_all_words()
+
+    def __bool__(self):
+        """
+        Test whether the WordsFile is not empty.
+        :return: False if the file contains no words, True otherwise.
+        """
+
+        return len(self.file_words) > 0
 
     def store_all_words(self):
         """
@@ -62,7 +79,7 @@ class WordsFile:
                         # If PyPDF can't handle the encryption algorithm, do it with a subprocess call.
                         # Thanks to GitHub user ssokolow for this bit.
                         # Make a temporary directory and file to work with safely.
-                        # TODO: No idea why it seems to raise a FileNotFound exception.
+                        # BUG: No idea why it seems to raise a FileNotFound exception.
                         # temporary_directory = tempdir.tempfile.mkdtemp(dir=os.path.dirname(self.file_path))
                         # temporary_pdf = os.path.join(temporary_directory, '_temp.pdf')
 
@@ -130,46 +147,200 @@ class WordsFile:
 
         self.file_words = all_words  # Store the list of words in an instance attribute for easy and cheap access.
 
-    def get_unique_words(self) -> set:
+    def get_words(self) -> Optional[list]:
         """
-        :return: a set of the unique words in the chosen file.
+        Get the list of the file's words.
+        :return: the list of words or None.
         """
 
-        return set(self.file_words)
+        if len(self.file_words):
+            return self.file_words
+
+        return None
+
+    def get_unique_words(self) -> Optional[set]:
+        """
+        :return: a set of the unique words in the chosen file or None if no words are present.
+        """
+
+        if self.get_words():
+            return set(self.get_words())
+
+        return None
 
     def count_all_words(self) -> int:
         """
         :return: the count of all words in the chosen file.
         """
 
-        return len(self.file_words)
+        if self.words_count is None:
+            self.words_count = len(self.file_words)
 
-    def count_word(self, word: str) -> int:
-        """
-        :param word: the word to count the occurrences of.
-        :return: the count of the occurrences of word in the chosen file.
-        """
-        return self.file_words.count(word)
+        return self.words_count
 
     def count_unique_words(self) -> int:
         """
         :return: the count of all unique words in the chosen file.
         """
 
-        return len(self.get_unique_words())
+        if self.uniques_count is None:
+            self.uniques_count = len(self.get_unique_words())
+
+        return self.uniques_count
+
+    def count_word(self, word: str) -> int:
+        """
+        :param word: the word to count the occurrences of.
+        :return: the count of the occurrences of word in the chosen file.
+        """
+
+        return self.specific_count.setdefault(word, self.file_words.count(word))
 
     def get_frequency(self) -> collections.Counter:
         """
-        Get  the frequency list of all words in the file.
+        Get the frequency list of all words in the file.
         :return: a counter ["word"] = occurrences in descending order.
         """
 
-        frequency_counter = collections.Counter()
+        if self.frequency_list is None:
+            frequency_counter = collections.Counter()
 
-        for word in self.file_words:
-            frequency_counter[word] += 1
+            for word in self.file_words:
+                frequency_counter[word] += 1
 
-        return frequency_counter.most_common()
+            self.frequency_list = frequency_counter.most_common()
+
+        return self.frequency_list
+
+
+class FilesCollection:
+    """
+    Collect and manage all files to operate on.
+
+    All functions are built to be compatible with the output of individual files (WordsFile).
+    A FilesCollection can be treated as a WordsFile once initialised with at least one WordsFile.
+    """
+
+    files = {}
+    collective_words = []
+
+    # Attributes to optimise performance in case of repeated calls.
+    collective_words_count = None
+    collective_uniques_count = None
+    collective_specific_count = {}
+    collective_frequency_list = None
+
+    def __init__(self, *files: Optional[WordsFile]):
+        """
+        Store all provided files.
+        :param files: zero or more files to store.
+        """
+
+        if len(files) == 0:
+            return
+
+        self.add_files(*files)
+
+    def reset_values(self):
+        """
+        Reset all instance variables to force recounting all values when the collection changes.
+        """
+
+        self.collective_words_count = None
+        self.collective_uniques_count = None
+        self.collective_specific_count = {}
+        self.collective_frequency_list = None
+
+    def get_files(self):
+        """
+        :return: a list of all the file paths currently contained in the collection.
+        """
+
+        pass  # TODO
+
+    def add_files(self, *files: WordsFile):
+        """
+        Add the provided file(s) to the collection and their words to the collective words.
+        :param files: one or more WordsFile to add to the collection.
+        """
+
+        for file in files:
+            if not isinstance(file, WordsFile):
+                raise TypeError
+
+            # Add the file to the collection using its insertion order as index.
+            self.files.update({len(self.files): file})
+            self.collective_words.append(file.get_words())
+
+        self.reset_values()
+
+    def remove_files(self, *files):
+        pass  # TODO: remember to reset_values()
+
+    def get_collective_words(self) -> Optional[list]:
+        """
+        Get the list of all the files' words.
+        :return: the list of words or None.
+        """
+
+        if len(self.collective_words):
+            return self.collective_words
+
+        return None
+
+    def get_collective_unique_words(self) -> Optional[set]:
+        """
+        :return: a set of the unique words in the collection or None if no words are present.
+        """
+
+        if self.get_collective_words():
+            return set(self.get_collective_words())
+
+        return None
+
+    def count_collective_words(self) -> int:
+        """
+        :return: the count of all words in the collection.
+        """
+
+        if self.collective_words_count is None:
+            self.collective_words_count = len(self.collective_words)
+
+        return self.collective_words_count
+
+    def count_collective_unique_words(self) -> int:
+        """
+        :return: the count of all unique words in the collection.
+        """
+
+        if self.collective_uniques_count is None:
+            self.collective_uniques_count = len(self.get_collective_unique_words())
+
+        return self.collective_uniques_count
+
+    def count_collective_word(self, word: str) -> int:
+        """
+        :param word: the word to count the occurrences of.
+        :return: the count of the occurrences of word in the collection.
+        """
+
+        return self.collective_specific_count.setdefault(word, self.collective_words.count(word))
+
+    def get_frequency(self) -> collections.Counter:
+        """
+        Get the frequency list of all words in the collection.
+        :return: a counter ["word"] = occurrences in descending order.
+        """
+
+        if self.collective_frequency_list is None:
+            frequency_counter = collections.Counter()
+
+            for word in self.collective_words:
+                frequency_counter[word] += 1
+
+            self.collective_frequency_list = frequency_counter.most_common()
+
+        return self.collective_frequency_list
 
 
 class CommandLineInterface(cmd.Cmd):
@@ -182,13 +353,22 @@ class CommandLineInterface(cmd.Cmd):
     prompt = "uniQword, "
     file = None
 
-    def no_file(self):
+    def check_file(self) -> bool:
         """
-        Alert the user that no file has been selected yet.
+        Check if there's a file selected and if it contains any words.
+        :return bool: True if file is valid, False otherwise.
         """
 
-        print("First I need to know which file to use!")
-        self.onecmd("help use")
+        if self.file is None:
+            print("First I need to know which file to use!")
+            self.onecmd("help use")
+            return False
+
+        if self.file.get_words() is None:
+            print("The selected file is empty.")
+            return False
+
+        return True
 
     @staticmethod
     def emptyline(**kwargs):
@@ -246,25 +426,27 @@ class CommandLineInterface(cmd.Cmd):
                 uniQword, list u
         """
 
-        if not self.file:
-            self.no_file()
+        if self.check_file() is False:
             return
 
         output = ""
+        words = self.file.get_words()
+        unique_words = self.file.get_unique_words()
 
         if not target:
             print("Please specify something to list!")
             self.onecmd("help list")
             return
-        elif target in ["w", "words"]:
+
+        if target in ["w", "words"]:
             line = ""
-            for index, word in enumerate(self.file.file_words):
+            for index, word in enumerate(words):
                 line += word
                 if len(line) >= 72:  # Limit the line length of each line to 72 chars.
                     line += "\n"
                     output += line
                     line = ""
-                elif index == len(self.file.file_words) - 1:  # If we're done adding words.
+                elif index == len(words) - 1:  # If we're done adding words.
                     output += line
                 else:  # Add a comma.
                     line += ", "
@@ -272,13 +454,13 @@ class CommandLineInterface(cmd.Cmd):
             output = f"Here are all the words in the file:\n{output}"
         elif target in ["u", "unique", "uniques", "unique words"]:
             line = ""
-            for index, word in enumerate(self.file.get_unique_words()):
+            for index, word in enumerate(unique_words):
                 line += word
                 if len(line) >= 72:  # Limit the line length of each line to 72 chars.
                     line += "\n"
                     output += line
                     line = ""
-                elif index == len(self.file.get_unique_words()) - 1:  # If we're done adding words.
+                elif index == len(unique_words) - 1:  # If we're done adding words.
                     output += line
                 else:  # Add a comma.
                     line += ", "
@@ -298,8 +480,7 @@ class CommandLineInterface(cmd.Cmd):
                 uniQword, count w banana
         """
 
-        if not self.file:
-            self.no_file()
+        if self.check_file() is False:
             return
 
         if target in ["*", "words", "w"]:
@@ -324,8 +505,7 @@ class CommandLineInterface(cmd.Cmd):
                 uniQword, frequency reversed
         """
 
-        if not self.file:
-            self.no_file()
+        if self.check_file() is False:
             return
 
         is_reversed = False
