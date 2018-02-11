@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import Optional  # Used for type hinting.
 import cmd  # Used for the command-line interface.
 import time  # Used by the command-line interface for sleep() when bidding farewell to the user.
 import codecs  # Used to avoid codec problems when reading files.
@@ -61,6 +61,9 @@ class WordsFile:
         """
 
         return len(self.file_words) > 0
+
+    def __eq__(self, other):
+        return self.file_path == other.file_path
 
     def store_all_words(self):
         """
@@ -268,31 +271,44 @@ class FilesCollection:
         self.collective_specific_count = {}
         self.collective_frequency_list = None
 
-    def get_files(self):
-        """
-        :return: a list of all the file paths currently contained in the collection.
-        """
-
-        pass  # TODO
-
     def add_files(self, *files: WordsFile):
         """
         Add the provided file(s) to the collection and their words to the collective words.
         :param files: one or more WordsFile to add to the collection.
+        :raise TypeError: if the provided files are not valid WordsFile instances.
         """
 
         for file in files:
             if not isinstance(file, WordsFile):
                 raise TypeError
 
-            # Add the file to the collection using its insertion order as index.
-            self.files.update({len(self.files): file})
+            # Add the file to the collection using its file_path as index for optimal lookup.
+            self.files.update({file.file_path: file})
             self.collective_words.append(file.get_words())
 
         self.reset_values()
 
-    def remove_files(self, *files):
-        pass  # TODO: remember to reset_values()
+    def remove_files(self, *file_paths: str):
+        """
+        Remove the provided files from the collection. File paths that are not found are ignored.
+        :param file_paths: the file paths to remove from the collection.
+        :raise ValueError: if no (valid) file is provided.
+        """
+
+        if not len(file_paths):
+            raise ValueError
+
+        for file in file_paths:
+            try:
+                # Remove all words contained in the given file from the collection of words.
+                for word in self.files[file].get_words():
+                    self.collective_words.remove(word)
+
+                del self.files[file]  # Delete the file itself from the collection.
+            except KeyError:
+                continue  # Suppress the exception if no file with the given name is found.
+
+        self.reset_values()
 
     def get_collective_words(self) -> Optional[list]:
         """
@@ -556,6 +572,10 @@ class CommandLineInterface(cmd.Cmd):
         exit()
 
     def do_test(self, arg):
+        """
+        Method used for testing.
+        """
+
         pass
 
 
