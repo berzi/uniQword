@@ -6,14 +6,18 @@ import time  # Used by the command-line interface for sleep() when bidding farew
 import codecs  # Used to avoid codec problems when reading files.
 import PyPDF2  # Used to read PDF files.
 import docx  # Used to read docx files.
-import zipfile  # Used to read odt files.
-from lxml import etree  # This too.
-# import os  # This and following: used to decode problematic passworded PDFs.
-# import shutil
+import zipfile  # This and next: used to read odt files.
+from lxml import etree
+import os  # Used for directory-wide operations.
+# import shutil  # This and following: used to decode problematic passworded PDFs.
 # import tempdir
 # import subprocess
 import collections  # Used for frequency counts.
-import operator  # Used for itemgetter() to optimise reverse operations.
+import operator  # Used because of itemgetter() to optimise reverse operations.
+
+
+# All currently accepted formats for files to examine.
+SUPPORTED_FORMATS = (".txt", ".docx", ".odt", ".pdf")
 
 
 class DecryptionError(Exception):
@@ -65,7 +69,13 @@ class WordsFile:
         return self.file_path == other.file_path
 
     def store_all_words(self):
-        """Store an instance list with each word in the chosen file, eliminating every punctuation sign."""
+        """
+        Store an instance list with each word in the chosen file, eliminating every punctuation sign.
+        :raise DecryptionError: if a wrong password was provided.
+        :raise NotImplementedError: if the file is encrypted with an unsupported algorythm.
+        :raise ValueError: if the provided file is of an unsupported format.
+        """
+
         all_words = []
         contents = ""
 
@@ -76,7 +86,6 @@ class WordsFile:
                     try:
                         # Try to open the file with the given password.
                         if reader.decrypt(self.password) == 0:
-                            # If the password is wrong, raise an exception for the UI to handle.
                             raise DecryptionError
                     except NotImplementedError:
                         # If PyPDF can't handle the encryption algorithm, do it with a subprocess call.
@@ -113,9 +122,11 @@ class WordsFile:
                     if "text" in child.tag and child.text is not None:
                         # Add each tag's text to the context plus a line break to ensure words don't end up joined.
                         contents += child.text+"\n"
-        else:
+        elif self.file_path.endswith(".txt"):
             with codecs.open(self.file_path) as file:
                 contents = file.read()
+        else:
+            raise ValueError
 
         # Get all to lowercase. This is useful to count unique words, and we don't need case sensitiveness anyway.
         contents = contents.lower()
@@ -212,9 +223,10 @@ class FilesCollection:
     A FilesCollection can be treated as a WordsFile once initialised with at least one WordsFile.
     """
 
-    files = {}
+    files = {}  # Key: file name. Value: WordsFile instance.
     collective_words = []
     collective_unique_words = set()
+    directories = {}   # Key: directory path. Value: list of WordsFile instances.
 
     # Attributes to act as a cache to optimise performance in case of repeated calls.
     collective_words_count = None
@@ -236,7 +248,7 @@ class FilesCollection:
     def __repr__(self):
         """Represent the collection as its name plus a list of all files it contains."""
         if len(self.files):
-            files = "\n".join(self.files.values())
+            files = "\n".join([entry.__repr__() for entry in self.files.values()])
             return f"{self.__class__.__name__}:\n{files}"
 
         return f"{self.__class__.__name__}"
@@ -244,9 +256,9 @@ class FilesCollection:
     def __str__(self):
         """Print the list of the files in the collection."""
         if len(self.files):
-            return "\n".join(self.files.values())
+            return "\n".join([entry.__repr__() for entry in self.files.values()])
 
-        return "Empty file collection."
+        return "The collection is empty."
 
     def __bool__(self):
         """:return: False if the collection is empty, True otherwise."""
@@ -263,7 +275,7 @@ class FilesCollection:
         self.collective_specific_count = {}
         self.collective_frequency_list = None
 
-    def get_files(self):
+    def get_files(self) -> str:
         """Provide the file paths of each file in the collection."""
 
         for file_path in self.files.keys():
@@ -287,7 +299,7 @@ class FilesCollection:
 
         self.reset_values()
 
-    def remove_files(self, *file_paths: str):
+    def remove_files(self, *file_paths: str) -> int:
         """
         Remove the provided files from the collection. File paths that are not found are ignored.
         :param file_paths: the file paths to remove from the collection.
@@ -313,6 +325,65 @@ class FilesCollection:
                 continue  # Suppress the exception if no file with the given name is found.
 
         self.reset_values()
+        return removed
+
+    def add_directories(self, *directories: str) -> list:
+        """
+        Add the provided directory or directories to the collection by instantiating all files contained therein.
+        Will not add files beginning in .
+        :param directories: the path(s) of each directory to add.
+        :raise ValueError: if no valid directory is provided.
+        :return: the list of all files added successfully.
+        """
+
+        # TODO: optimise performance by packing/unpacking properly etc.
+        if not len(directories):
+            raise ValueError
+
+        added = []
+        for directory in directories:
+            directory_files = []
+            for file_name in os.listdir(directory):
+                if file_name.endswith(SUPPORTED_FORMATS):
+                    if file_name in self.files.keys():
+                        continue  # Ignore files that are already in the collection.
+
+                    try:
+                        added_file = WordsFile(file_name, "")
+                        self.add_files(added_file)
+
+                        directory_files.append(added_file)
+                        added.append(file_name)
+                    except Exception as exception:
+                        if exception in (DecryptionError, NotImplementedError):
+                            continue  # Suppress cases where passworded files are found, ignore them and move on.
+                        else:
+                            raise
+
+            self.directories.update({directory: directory_files})
+
+        return added
+
+    def remove_directories(self, *directories: str) -> list:
+        """
+        Remove the provided directory or directories from the collection by removing each file contained therein.
+        Files that had been added individually will not be removed even if they are present in the directory to remove.
+        :param directories: the path(s) of each directory to remove.
+        :raise ValueError: if no valid directory is provided.
+        :return: the list of all files successfully removed.
+        """
+
+        # TODO: optimise performance by packing/unpacking properly etc.
+        # TODO: remember to catch KeyError in case a directory is not found.
+        if not len(directories):
+            raise ValueError
+
+        removed = []
+        for directory in directories:
+            for file in self.directories[directory]:
+                self.remove_files(file)
+                removed.append(file)
+
         return removed
 
     def get_collective_words(self) -> Optional[list]:
@@ -403,7 +474,7 @@ class CommandLineInterface(cmd.Cmd):
                 uniQword, add myfile.pdf
                 uniQword, add passwordedfile.pdf myp@ssw0rd
         """
-
+        # TODO: implement function for directories. Remember to add . as an option to add the current dir.
         password = ""
         try:
             file, password = user_entry.split(" ")[0], user_entry.split(" ")[1]
@@ -423,7 +494,8 @@ class CommandLineInterface(cmd.Cmd):
         except ValueError:
             print("I couldn't decode the file. Please save it in UTF-8 before retrying.")
         except TypeError:
-            print("Something went wrong. Please try again.")
+            print(f"I cannot use this file. Please convert it to one of the supported formats: "
+                  f"{', '.join(SUPPORTED_FORMATS)}.")
         except DecryptionError:
             print("I need the correct password for this file!\n"
                   "Leave an empty space after the file name and type the password, example:\n"
@@ -457,6 +529,14 @@ class CommandLineInterface(cmd.Cmd):
         else:
             self.file.remove_files(target)
             print(f"I removed the file \"{target}\" if it was present in the list.")
+
+    def do_files(self, arg):
+        """
+        List all files currently being processed.
+        """
+
+        del arg
+        print("Here are all the files we're working on:\n"+"\n".join([entry for entry in self.file.get_files()]))
 
     def do_list(self, target: str):
         """
