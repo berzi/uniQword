@@ -374,15 +374,17 @@ class FilesCollection:
         """
 
         # TODO: optimise performance by packing/unpacking properly etc.
-        # TODO: remember to catch KeyError in case a directory is not found.
         if not len(directories):
             raise ValueError
 
         removed = []
         for directory in directories:
-            for file in self.directories[directory]:
-                self.remove_files(file)
-                removed.append(file)
+            try:
+                for file in self.directories[directory]:
+                    self.remove_files(file)
+                    removed.append(file)
+            except KeyError:
+                continue
 
         return removed
 
@@ -474,6 +476,7 @@ class CommandLineInterface(cmd.Cmd):
                 uniQword, add myfile.pdf
                 uniQword, add passwordedfile.pdf myp@ssw0rd
         """
+
         # TODO: implement function for directories. Remember to add . as an option to add the current dir.
         password = ""
         try:
