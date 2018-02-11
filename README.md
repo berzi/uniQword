@@ -5,9 +5,11 @@ A simple program to count all the (unique) words contained in a text file and pe
 - Count and list all words.
 - Count and list unique words.
 - Frequency list for words.
+- Process multiple files at once.
 
 ## Planned features:
-- Process multiple files/directories at once.
+- Can select entire directories at once.
+- Process multiple directories at once.
 - Statistical data on words.
 
 # Supported formats:
@@ -17,4 +19,4 @@ A simple program to count all the (unique) words contained in a text file and pe
 - `.odt`.
 
 ## Planned formats:
-- `.docx` (including encrypted).
+- encrypted `.docx`.

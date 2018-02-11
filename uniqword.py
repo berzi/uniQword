@@ -1,3 +1,5 @@
+"""uniQword is a program to read and count words from one or multiple files and perform some statistical operations."""
+
 from typing import Optional  # Used for type hinting.
 import cmd  # Used for the command-line interface.
 import time  # Used by the command-line interface for sleep() when bidding farewell to the user.
@@ -15,19 +17,14 @@ import operator  # Used for itemgetter() to optimise reverse operations.
 
 
 class DecryptionError(Exception):
-    """
-    Catches the event in which an encrypted file is provided with a wrong password or none at all.
-    """
-
+    """Catches the event in which an encrypted file is provided with a wrong password or none at all."""
     pass
 
 
 class WordsFile:
-    """
-    Manage the file and collect and enumerate the words it contains.
-    """
-
+    """Manage the file and collect and enumerate the words it contains."""
     file_words = []
+    file_unique_words = set()
     file_path = ""
 
     # Attributes to optimise performance in case of repeated calls.
@@ -52,6 +49,7 @@ class WordsFile:
         self.store_all_words()
 
     def __repr__(self):
+        """Represent the class as its own name plus the path of the contained file."""
         return f"{self.__class__.__name__}: {self.file_path}"
 
     def __bool__(self):
@@ -63,13 +61,11 @@ class WordsFile:
         return len(self.file_words) > 0
 
     def __eq__(self, other):
+        """Compare two instances on the base of the file path they point to."""
         return self.file_path == other.file_path
 
     def store_all_words(self):
-        """
-        Store an instance list with each word in the chosen file, eliminating every punctuation sign.
-        """
-
+        """Store an instance list with each word in the chosen file, eliminating every punctuation sign."""
         all_words = []
         contents = ""
 
@@ -153,6 +149,7 @@ class WordsFile:
             all_words.append("".join(word))
 
         self.file_words = all_words  # Store the list of words in an instance attribute for easy and cheap access.
+        self.file_unique_words.update(all_words)  # Store all unique words in another attribute.
 
     def get_words(self) -> Optional[list]:
         """
@@ -166,41 +163,28 @@ class WordsFile:
         return None
 
     def get_unique_words(self) -> Optional[set]:
-        """
-        :return: a set of the unique words in the chosen file or None if no words are present.
-        """
-
-        if self.get_words():
-            return set(self.get_words())
+        """:return: a set of the unique words in the chosen file or None if no words are present."""
+        if self.file_unique_words:
+            return self.file_unique_words
 
         return None
 
     def count_all_words(self) -> int:
-        """
-        :return: the count of all words in the chosen file.
-        """
-
+        """:return: the count of all words in the chosen file."""
         if self.words_count is None:
             self.words_count = len(self.file_words)
 
         return self.words_count
 
     def count_unique_words(self) -> int:
-        """
-        :return: the count of all unique words in the chosen file.
-        """
-
+        """:return: the count of all unique words in the chosen file."""
         if self.uniques_count is None:
             self.uniques_count = len(self.get_unique_words())
 
         return self.uniques_count
 
     def count_word(self, word: str) -> int:
-        """
-        :param word: the word to count the occurrences of.
-        :return: the count of the occurrences of word in the chosen file.
-        """
-
+        """:return: the count of the occurrences of the specified word in the chosen file."""
         return self.specific_count.setdefault(word, self.file_words.count(word))
 
     def get_frequency(self) -> collections.Counter:
@@ -230,8 +214,9 @@ class FilesCollection:
 
     files = {}
     collective_words = []
+    collective_unique_words = set()
 
-    # Attributes to optimise performance in case of repeated calls.
+    # Attributes to act as a cache to optimise performance in case of repeated calls.
     collective_words_count = None
     collective_uniques_count = None
     collective_specific_count = {}
@@ -249,6 +234,7 @@ class FilesCollection:
         self.add_files(*files)
 
     def __repr__(self):
+        """Represent the collection as its name plus a list of all files it contains."""
         if len(self.files):
             files = "\n".join(self.files.values())
             return f"{self.__class__.__name__}:\n{files}"
@@ -256,20 +242,32 @@ class FilesCollection:
         return f"{self.__class__.__name__}"
 
     def __str__(self):
+        """Print the list of the files in the collection."""
         if len(self.files):
             return "\n".join(self.files.values())
 
         return "Empty file collection."
 
-    def reset_values(self):
-        """
-        Reset all instance variables to force recounting all values when the collection changes.
-        """
+    def __bool__(self):
+        """:return: False if the collection is empty, True otherwise."""
+        return len(self.files) > 0
 
+    def __len__(self):
+        """Return how many files the collection contains."""
+        return len(self.files)
+
+    def reset_values(self):
+        """Reset all instance cache variables to force recounting all values."""
         self.collective_words_count = None
         self.collective_uniques_count = None
         self.collective_specific_count = {}
         self.collective_frequency_list = None
+
+    def get_files(self):
+        """Provide the file paths of each file in the collection."""
+
+        for file_path in self.files.keys():
+            yield file_path
 
     def add_files(self, *files: WordsFile):
         """
@@ -284,7 +282,8 @@ class FilesCollection:
 
             # Add the file to the collection using its file_path as index for optimal lookup.
             self.files.update({file.file_path: file})
-            self.collective_words.append(file.get_words())
+            self.collective_words += file.get_words()
+            self.collective_unique_words.update(file.get_words())
 
         self.reset_values()
 
@@ -293,70 +292,59 @@ class FilesCollection:
         Remove the provided files from the collection. File paths that are not found are ignored.
         :param file_paths: the file paths to remove from the collection.
         :raise ValueError: if no (valid) file is provided.
+        :return: the number of files successfully deleted.
         """
 
         if not len(file_paths):
-            raise ValueError
+            raise ValueError("No file path to remove was provided.")
+
+        removed = 0
 
         for file in file_paths:
             try:
                 # Remove all words contained in the given file from the collection of words.
                 for word in self.files[file].get_words():
                     self.collective_words.remove(word)
+                    self.collective_unique_words.discard(word)
 
                 del self.files[file]  # Delete the file itself from the collection.
+                removed += 1
             except KeyError:
                 continue  # Suppress the exception if no file with the given name is found.
 
         self.reset_values()
+        return removed
 
     def get_collective_words(self) -> Optional[list]:
-        """
-        Get the list of all the files' words.
-        :return: the list of words or None.
-        """
-
+        """:return: the list of all the files' words or None."""
         if len(self.collective_words):
             return self.collective_words
 
         return None
 
     def get_collective_unique_words(self) -> Optional[set]:
-        """
-        :return: a set of the unique words in the collection or None if no words are present.
-        """
-
-        if self.get_collective_words():
-            return set(self.get_collective_words())
+        """:return: a set of the unique words in the collection or None if no words are present."""
+        if self.collective_unique_words:
+            return self.collective_unique_words
 
         return None
 
     def count_collective_words(self) -> int:
-        """
-        :return: the count of all words in the collection.
-        """
-
+        """:return: the count of all words in the collection."""
         if self.collective_words_count is None:
             self.collective_words_count = len(self.collective_words)
 
         return self.collective_words_count
 
     def count_collective_unique_words(self) -> int:
-        """
-        :return: the count of all unique words in the collection.
-        """
-
+        """:return: the count of all unique words in the collection."""
         if self.collective_uniques_count is None:
-            self.collective_uniques_count = len(self.get_collective_unique_words())
+            self.collective_uniques_count = len(self.collective_unique_words)
 
         return self.collective_uniques_count
 
     def count_collective_word(self, word: str) -> int:
-        """
-        :param word: the word to count the occurrences of.
-        :return: the count of the occurrences of word in the collection.
-        """
-
+        """:return: the count of the occurrences of the word in the collection."""
         return self.collective_specific_count.setdefault(word, self.collective_words.count(word))
 
     def get_frequency(self) -> collections.Counter:
@@ -377,53 +365,43 @@ class FilesCollection:
 
 
 class CommandLineInterface(cmd.Cmd):
-    """
-    Manage the command-line interface.
-    """
-
+    """Manage the command-line interface."""
     intro = "Welcome. I am uniQword, I can count all the words in your files and more.\n" \
-            "To begin, select a file with the \"use\" command or type help or ? to read a list of commands."
+            "To begin, select a file with the \"add\" command or type help or ? to read a list of commands."
     prompt = "uniQword, "
-    file = None
+    file = FilesCollection()
 
     def check_file(self) -> bool:
-        """
-        Check if there's a file selected and if it contains any words.
-        :return bool: True if file is valid, False otherwise.
-        """
-
-        if self.file is None:
-            print("First I need to know which file to use!")
-            self.onecmd("help use")
+        """:return: True if there is at least one  valid file selected, False otherwise."""
+        if not self.file:
+            print("I can't operate without a file!")
+            self.onecmd("help add")
             return False
 
-        if self.file.get_words() is None:
-            print("The selected file is empty.")
+        if self.file.get_collective_words() is None:
+            print(f"The selected file{'s are' if len(self.file) > 1 else ' is'} empty.")
             return False
 
         return True
 
     @staticmethod
     def emptyline(**kwargs):
-        """
-        Scold the user for entering an empty command.
-        """
-
+        """Scold the user for entering an empty command."""
         print("No idea what to do? Type help or ? to see a list of commands.")
 
     @staticmethod
     def default(line, **kwargs):
-        """
-        Scold the user for writing an unrecognised command.
-        """
-
+        """Scold the user for writing an unrecognised command."""
         print(f"I don't know of a command called \"{line}\".")
         CommandLineInterface.emptyline()
 
-    def do_use(self, user_entry: str):
+    def do_add(self, user_entry: str):
         """
-        Select a file to operate on.
-            Example: uniQword, use myfile.txt
+        Select a file to operate on. You can select multiple files, one at a time.
+        Please provide a password if needed.
+            Examples:
+                uniQword, add myfile.pdf
+                uniQword, add passwordedfile.pdf myp@ssw0rd
         """
 
         password = ""
@@ -433,19 +411,52 @@ class CommandLineInterface(cmd.Cmd):
             file = user_entry
 
         try:
-            self.file = WordsFile(file, password)
+            self.file.add_files(WordsFile(file, password))
 
             print(f"I selected the file: {user_entry}.")
         except FileNotFoundError:
-            print("I couldn't find the file you asked for. Please try again.")
+            if len(file):
+                print("I couldn't find the file you asked for. Please try again.")
+            else:
+                print("I need a file name in order to add it!")
+                self.onecmd("help add")
         except ValueError:
             print("I couldn't decode the file. Please save it in UTF-8 before retrying.")
+        except TypeError:
+            print("Something went wrong. Please try again.")
         except DecryptionError:
             print("I need the correct password for this file!\n"
                   "Leave an empty space after the file name and type the password, example:\n"
-                  "Qword, use myfile.txt myp@ssw0rd")
+                  "Qword, add myfile.txt myp@ssw0rd")
         except NotImplementedError:
-            print("I couldn't decrypt the file. Please use a non-passworded copy before retrying.")
+            print("I couldn't decrypt the file. Please retry with a non-passworded copy.")
+
+    def do_remove(self, target: str):
+        """Remove a file from those currently in use. You can remove one file at a time or all at once.
+            Examples:
+                uniQword, remove myfile.txt
+                uniQword, remove all files
+                uniQword, remove *
+        """
+
+        if not self.file:
+            print("There is no file to remove.")
+            return
+
+        if not target:
+            print("Please select something to remove.")
+            self.onecmd("help remove")
+            return
+
+        if target in ["all files", "*"]:
+            removed = 0
+            for file_path in self.file.get_files():
+                removed += self.file.remove_files(file_path)
+
+            print(f"I removed {'the only file' if removed == 1 else 'all '+str(removed)+' files'} from the list.")
+        else:
+            self.file.remove_files(target)
+            print(f"I removed the file \"{target}\" if it was present in the list.")
 
     def do_list(self, target: str):
         """
@@ -463,13 +474,8 @@ class CommandLineInterface(cmd.Cmd):
             return
 
         output = ""
-        words = self.file.get_words()
-        unique_words = self.file.get_unique_words()
-
-        if not target:
-            print("Please specify something to list!")
-            self.onecmd("help list")
-            return
+        words = self.file.get_collective_words()
+        unique_words = self.file.get_collective_unique_words()
 
         if target in ["w", "words"]:
             line = ""
@@ -499,6 +505,10 @@ class CommandLineInterface(cmd.Cmd):
                     line += ", "
 
             output = f"Here are all the unique words in the file:\n{output}"
+        else:
+            print("Please specify something to list!")
+            self.onecmd("help list")
+            return
 
         print(output)
 
@@ -517,13 +527,13 @@ class CommandLineInterface(cmd.Cmd):
             return
 
         if target in ["*", "words", "w"]:
-            amount = self.file.count_all_words()
+            amount = self.file.count_collective_words()
             print(f"The file contains: {amount:d} word{'' if amount == 1 else 's'} in total.")
         elif target in ["unique", "uniques", "unique words", "u"]:
-            amount = self.file.count_unique_words()
-            print(f"The file contains: {amount:d} word{'' if amount == 1 else 's'} in total.")
+            amount = self.file.count_collective_unique_words()
+            print(f"The file contains: {amount:d} unique word{'' if amount == 1 else 's'} in total.")
         elif " " in target and target.split(" ")[0] in ["w", "word", "specific word"]:
-            amount = self.file.count_word(target.split(" ")[1])
+            amount = self.file.count_collective_word(target.split(" ")[1])
             print(f"The file contains: {amount:d} instance{'' if amount == 1 else 's'}"
                   f" of the word \"{target.split(' ')[1]}\".")
         else:
@@ -572,10 +582,7 @@ class CommandLineInterface(cmd.Cmd):
         exit()
 
     def do_test(self, arg):
-        """
-        Method used for testing.
-        """
-
+        """Test something."""
         pass
 
 
