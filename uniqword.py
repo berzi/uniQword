@@ -220,13 +220,12 @@ class FilesCollection:
     Collect and manage all files to operate on.
 
     All functions are built to be compatible with the output of individual files (WordsFile).
-    A FilesCollection can be treated as a WordsFile once initialised with at least one WordsFile.
     """
 
     files = {}  # Key: file name. Value: WordsFile instance.
     collective_words = []
     collective_unique_words = set()
-    directories = {}   # Key: directory path. Value: list of WordsFile instances.
+    directories = {}   # Key: directory path. Value: list of file paths.
 
     # Attributes to act as a cache to optimise performance in case of repeated calls.
     collective_words_count = None
@@ -349,16 +348,12 @@ class FilesCollection:
                         continue  # Ignore files that are already in the collection.
 
                     try:
-                        added_file = WordsFile(file_name, "")
-                        self.add_files(added_file)
+                        self.add_files(WordsFile(file_name, ""))
 
-                        directory_files.append(added_file)
+                        directory_files.append(file_name)
                         added.append(file_name)
-                    except Exception as exception:
-                        if exception in (DecryptionError, NotImplementedError):
-                            continue  # Suppress cases where passworded files are found, ignore them and move on.
-                        else:
-                            raise
+                    except DecryptionError:
+                        pass  # Suppress cases where passworded files are found, ignore them and move on.
 
             self.directories.update({directory: directory_files})
 
@@ -468,16 +463,15 @@ class CommandLineInterface(cmd.Cmd):
         print(f"I don't know of a command called \"{line}\".")
         CommandLineInterface.emptyline()
 
-    def do_add(self, user_entry: str):
+    def do_add_file(self, user_entry: str):
         """
-        Select a file to operate on. You can select multiple files, one at a time.
+        Select a file to operate on. You can select multiple items one at a time.
         Please provide a password if needed.
             Examples:
-                uniQword, add myfile.pdf
-                uniQword, add passwordedfile.pdf myp@ssw0rd
+                uniQword, add_file myfile.pdf
+                uniQword, add_file passwordedfile.pdf myp@ssw0rd
         """
 
-        # TODO: implement function for directories. Remember to add . as an option to add the current dir.
         password = ""
         try:
             file, password = user_entry.split(" ")[0], user_entry.split(" ")[1]
@@ -506,12 +500,12 @@ class CommandLineInterface(cmd.Cmd):
         except NotImplementedError:
             print("I couldn't decrypt the file. Please retry with a non-passworded copy.")
 
-    def do_remove(self, target: str):
+    def do_remove_file(self, target: str):
         """Remove a file from those currently in use. You can remove one file at a time or all at once.
             Examples:
-                uniQword, remove myfile.txt
-                uniQword, remove all files
-                uniQword, remove *
+                uniQword, remove_file myfile.txt
+                uniQword, remove_file all files
+                uniQword, remove_file *
         """
 
         if not self.file:
@@ -532,6 +526,39 @@ class CommandLineInterface(cmd.Cmd):
         else:
             self.file.remove_files(target)
             print(f"I removed the file \"{target}\" if it was present in the list.")
+
+    def do_add_dir(self, target: str):
+        """
+        Add all the files in a directory. Passworded or incompatible files will be ignored.
+        Use "." to add the current directory.
+            Examples:
+                uniQword, add_dir myfolder
+                uniQword, add_dir folder\myfolder
+                uniQword, add_dir .
+        """
+
+        try:
+            print("I successfully added the following files:\n" +
+                  "\n".join([file for file in self.file.add_directories(target)]))
+        except ValueError:
+            print("Please specify a folder to add!")
+
+    def do_remove_dir(self, target: str):
+        """
+        Remove all files from a previously added directory. Files that were added individually must be
+        removed individually even if they are present in the directory to remove.
+            Examples:
+                uniQword, remove_dir myfolder
+                uniQword, remove_dir folder\myfolder
+                uniQword, remove_dir .
+        """
+
+        try:
+            print("I successfully added the following files:\n" +
+                  "\n".join([file for file in self.file.remove_directories(target)]))
+        except ValueError:
+            print("Please specify a folder to remove!\n"
+                  "Do uniQword, files for a list of currently selected files and directories.")
 
     def do_files(self, arg):
         """
