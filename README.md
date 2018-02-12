@@ -6,11 +6,10 @@ A simple program to count all the (unique) words contained in a text file and pe
 - Count and list unique words.
 - Frequency list for words.
 - Process multiple files at once.
+- Process multiple directories at once.
 
 ## Planned features:
-- Can select entire directories at once.
-- Process multiple directories at once.
-- Statistical data on words.
+- More statistical data on words.
 
 # Supported formats:
 - Plain text (`.txt` etc).
