@@ -131,7 +131,7 @@ class WordsFile:
         for word in filter(lambda w: w not in ["", "\n"], contents):
             # Get all alphanumeric characters, plus hyphens and underscores.
             word = [char for char in word if char.isalnum() or char in ["-", "_"]]
-            if len(word):
+            if len(word):  # Ensure we're not working on an empty word.
                 # Remove hyphens at start or end.
                 if word[0] == "-":
                     word.pop(0)
@@ -525,7 +525,6 @@ class CommandLineInterface(cmd.Cmd):
                 uniQword, add_file passwordedfile.pdf myp@ssw0rd
         """
 
-        # TEST if adding in a nested dir works
         password = ""
         try:
             file, password = user_entry.split(" ")
@@ -591,7 +590,6 @@ class CommandLineInterface(cmd.Cmd):
                 uniQword, add_dir .
         """
 
-        # TEST if adding a nested dir works
         try:
             print("I successfully added the following files:\n" +
                   "\n".join([file for file in self.file.add_directories(target)]))
@@ -599,6 +597,9 @@ class CommandLineInterface(cmd.Cmd):
             print("Please specify a folder to add!")
         except FileNotFoundError:
             print("I couldn't find the specified directory.")
+        except NotADirectoryError:
+            print("You have to specify a directory, not a file.\n"
+                  "Use uniQword, add_file to add a file.")
 
     def do_remove_dir(self, target: str):
         """
