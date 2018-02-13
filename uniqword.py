@@ -224,7 +224,7 @@ class FilesCollection:
     files = {}  # Key: file name. Value: WordsFile instance.
     collective_words = []
     collective_unique_words = set()
-    directories = {}   # Key: directory path. Value: list of file paths.
+    directories = {}  # Key: directory path. Value: list of file paths.
 
     # Attributes to act as a cache to optimise performance in case of repeated calls.
     collective_words_count = None
@@ -347,6 +347,9 @@ class FilesCollection:
                         continue  # Ignore files that are already in the collection.
 
                     try:
+                        if directory != ".":
+                            file_name = directory+"\\"+file_name
+
                         self.add_files(WordsFile(file_name, ""))
 
                         directory_files.append(file_name)
@@ -414,13 +417,16 @@ class FilesCollection:
         """:return: the count of the occurrences of the word in the collection."""
         return self.collective_specific_count.setdefault(word, self.collective_words.count(word))
 
-    def get_frequency(self, top: int = 10, reverse: bool = False) -> collections.Counter:
+    def get_frequency(self, top: int, reverse: bool = False) -> collections.Counter:
         """
         Get the frequency list of all words in the collection.
         :param top: the amount of words to return at most. Defaults to 10.
         :param reverse: whether the frequency list should show the least common items. Defaults to False.
         :return: a counter ["word"] = occurrences in descending order.
         """
+
+        if not top:
+            top = 10
 
         if self.collective_frequency_list is None:
             frequency_counter = collections.Counter()
@@ -430,10 +436,18 @@ class FilesCollection:
 
             self.collective_frequency_list = frequency_counter.most_common()
 
-        output = self.collective_frequency_list[:top]
+        output = self.collective_frequency_list
+
+        if output is None:
+            return collections.Counter()
+
+        if len(output) == 0:
+            return collections.Counter()
 
         if reverse:
-            return output.reverse()
+            output.reverse()
+
+        output = output[:top]
 
         return output
 
@@ -443,33 +457,41 @@ class FilesCollection:
         :return: the name of the file.
         """
 
+        stats = "Stats for file"
+
         if len(self) == 1:
             # Use the only file's name as name for the stats file.
-            file_name = self.files.__iter__().__next__()
-            file_name = file_name.split(".")[0]
-            file_name += ".txt"
-            stats = "Stats for file: {}".format(file_name)
+            file_name = "stats_"+self.files.__iter__().__next__()
+            stats += ": {}".format(file_name)
         else:
             # Use uniQword as name for the stats file.
             file_name = "uniQword.txt"
-            stats = "Stats for files:\n{}\n\n".format("\n".join(self.files.keys()))
+            stats += "s:\n{}".format("\n".join(self.files.keys()))
 
+        stats += "\n\n"
         # Add stats for word count.
-        stats += "The {plural} {unique} unique words out of {total} total words".format(
+        stats += "The {plural} {unique} unique words out of {total} total words.\n\n".format(
             plural="file contains" if len(self) == 1 else "files contain",
             unique=self.count_collective_unique_words(),
             total=self.count_collective_words()
         )
 
         # Add stats for frequency.
+        words = self.get_frequency(top=frequency_top, reverse=frequency_reverse)
+        output = []
+        for word in words:
+            # Base number of tabs minus the length of the word in tabs.
+            tabs = "\t" * (6 - (len(word[0]) // 3))
+            output.append(f"{word[0]}:{tabs}{word[1]}")
+
         stats += "{rev} frequent {amount} {plural}:\n{freq}".format(
             rev="Least" if frequency_reverse else "Most",
-            amount=frequency_top,
-            plural="word" if frequency_top == 1 else "words",
-            freq="\n".join(self.get_frequency(top=frequency_top, reverse=frequency_reverse))
+            amount=len(output),
+            plural="word" if len(output) == 1 else "words",
+            freq="\n".join(output)
         )
 
-        with open(file_name, "r") as file:
+        with open(file_name+".txt", "w", encoding="UTF-8") as file:
             file.write(stats)
 
         return file_name
@@ -478,7 +500,7 @@ class FilesCollection:
 class CommandLineInterface(cmd.Cmd):
     """Manage the command-line interface."""
     intro = "Welcome. I am uniQword, I can count all the words in your files and more.\n" \
-            "To begin, select a file with the \"add\" command or type help or ? to read a list of commands."
+            "To begin, select a file with the \"add_file\" or \"add_dir\" command or type ? to read a list of commands."
     prompt = "uniQword, "
     file = FilesCollection()
 
@@ -503,7 +525,12 @@ class CommandLineInterface(cmd.Cmd):
     @staticmethod
     def default(line, **kwargs):
         """Scold the user for writing an unrecognised command."""
-        print(f"I don't know of a command called \"{line}\".")
+        try:
+            # Take only the first word if more are given.
+            command = line.split(' ')[0]
+        except IndexError:
+            command = line
+        print(f"I don't know of a command called \"{command}\".")
         CommandLineInterface.emptyline()
 
     def do_add_file(self, user_entry: str):
@@ -515,10 +542,11 @@ class CommandLineInterface(cmd.Cmd):
                 uniQword, add_file passwordedfile.pdf myp@ssw0rd
         """
 
+        # TEST if adding in a nested dir works
         password = ""
         try:
-            file, password = user_entry.split(" "), user_entry.split(" ")
-        except IndexError:
+            file, password = user_entry.split(" ")
+        except ValueError:
             file = user_entry
 
         try:
@@ -580,11 +608,14 @@ class CommandLineInterface(cmd.Cmd):
                 uniQword, add_dir .
         """
 
+        # TEST if adding a nested dir works
         try:
             print("I successfully added the following files:\n" +
                   "\n".join([file for file in self.file.add_directories(target)]))
         except ValueError:
             print("Please specify a folder to add!")
+        except FileNotFoundError:
+            print("I couldn't find the specified directory.")
 
     def do_remove_dir(self, target: str):
         """
@@ -597,8 +628,13 @@ class CommandLineInterface(cmd.Cmd):
         """
 
         try:
-            print("I successfully added the following files:\n" +
-                  "\n".join([file for file in self.file.remove_directories(target)]))
+            removed = self.file.remove_directories(target)
+            if len(removed):
+                print("I successfully removed the following files:\n" +
+                      "\n".join([file for file in removed]))
+            else:
+                print("I couldn't remove the directory. Make sure you type the whole path correctly.\n"
+                      "Do uniQword, files to check which file paths I'm currently using.")
         except ValueError:
             print("Please specify a folder to remove!\n"
                   "Do uniQword, files for a list of currently selected files and directories.")
@@ -709,7 +745,7 @@ class CommandLineInterface(cmd.Cmd):
 
         try:
             option_1, option_2 = options.split(" ")
-        except IndexError:
+        except ValueError:
             option_1 = options
             option_2 = None
 
@@ -729,7 +765,7 @@ class CommandLineInterface(cmd.Cmd):
         # Format the output to be easier on the eyes.
         for entry in frequency:
             # Calculate how many tabs to put in depending on the length of the word.
-            tabs = "\t" * (5 - (len(entry[0])+1) // 4)  # BUG: still doesn't work properly with short words.
+            tabs = "\t"*(6 - (len(entry[0])//4))
             output += f"{entry[0]}:{tabs}{entry[1]}\n"
 
         print(f"Here is the frequency list for the selected document(s){', reversed' if is_reversed else ''}:\n"
@@ -745,6 +781,7 @@ class CommandLineInterface(cmd.Cmd):
                 uniQword, print reversed
                 uniQword, print 15
                 uniQword, print 15 reversed
+                uniQword, print reversed 15
         """
 
         if self.check_file() is False:
@@ -752,7 +789,7 @@ class CommandLineInterface(cmd.Cmd):
 
         try:
             option_1, option_2 = options.split(" ")
-        except IndexError:
+        except ValueError:
             option_1 = options
             option_2 = None
 
@@ -765,6 +802,8 @@ class CommandLineInterface(cmd.Cmd):
                 is_reversed = True
         elif option_1 in ["r", "reverse", "reversed"]:
             is_reversed = True
+            if option_2.strip().isnumeric():
+                top = int(option_2.strip())
 
         print(f"I printed data on {len(self.file)} file{'' if len(self.file) == 1 else 's'} on a file named "
               f"{self.file.print_stats(frequency_top=top, frequency_reverse=is_reversed)}.")
