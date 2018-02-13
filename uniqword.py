@@ -13,7 +13,6 @@ import os  # Used for directory-wide operations.
 # import tempdir
 # import subprocess
 import collections  # Used for frequency counts.
-import operator  # Used because of itemgetter() to optimise reverse operations.
 
 
 # All currently accepted formats for files to examine.
@@ -415,9 +414,11 @@ class FilesCollection:
         """:return: the count of the occurrences of the word in the collection."""
         return self.collective_specific_count.setdefault(word, self.collective_words.count(word))
 
-    def get_frequency(self) -> collections.Counter:
+    def get_frequency(self, top: int = 10, reverse: bool = False) -> collections.Counter:
         """
         Get the frequency list of all words in the collection.
+        :param top: the amount of words to return at most. Defaults to 10.
+        :param reverse: whether the frequency list should show the least common items. Defaults to False.
         :return: a counter ["word"] = occurrences in descending order.
         """
 
@@ -429,7 +430,49 @@ class FilesCollection:
 
             self.collective_frequency_list = frequency_counter.most_common()
 
-        return self.collective_frequency_list
+        output = self.collective_frequency_list[:top]
+
+        if reverse:
+            return output.reverse()
+
+        return output
+
+    def print_stats(self, *, frequency_top: int = 10, frequency_reverse: bool = False) -> str:
+        """
+        Print all useful stats to a file.
+        :return: the name of the file.
+        """
+
+        if len(self) == 1:
+            # Use the only file's name as name for the stats file.
+            file_name = self.files.__iter__().__next__()
+            file_name = file_name.split(".")[0]
+            file_name += ".txt"
+            stats = "Stats for file: {}".format(file_name)
+        else:
+            # Use uniQword as name for the stats file.
+            file_name = "uniQword.txt"
+            stats = "Stats for files:\n{}\n\n".format("\n".join(self.files.keys()))
+
+        # Add stats for word count.
+        stats += "The {plural} {unique} unique words out of {total} total words".format(
+            plural="file contains" if len(self) == 1 else "files contain",
+            unique=self.count_collective_unique_words(),
+            total=self.count_collective_words()
+        )
+
+        # Add stats for frequency.
+        stats += "{rev} frequent {amount} {plural}:\n{freq}".format(
+            rev="Least" if frequency_reverse else "Most",
+            amount=frequency_top,
+            plural="word" if frequency_top == 1 else "words",
+            freq="\n".join(self.get_frequency(top=frequency_top, reverse=frequency_reverse))
+        )
+
+        with open(file_name, "r") as file:
+            file.write(stats)
+
+        return file_name
 
 
 class CommandLineInterface(cmd.Cmd):
@@ -474,7 +517,7 @@ class CommandLineInterface(cmd.Cmd):
 
         password = ""
         try:
-            file, password = user_entry.split(" ")[0], user_entry.split(" ")[1]
+            file, password = user_entry.split(" "), user_entry.split(" ")
         except IndexError:
             file = user_entry
 
@@ -650,39 +693,86 @@ class CommandLineInterface(cmd.Cmd):
             print("Please specify something to count!")
             self.onecmd("help count")
 
-    def do_frequency(self, order: str=""):
+    def do_frequency(self, options: str= ""):
         """
-        Print the frequency list of the current file. Can be printed in reverse.
+        Print the frequency list of the current file. It can be printed in reverse and the maximum amount of results can
+        be trimmed. By default, the first 10 results will be printed.
             Examples:
                 uniQword, frequency
                 uniQword, frequency reversed
+                uniQword, frequency 15
+                uniQword, frequency 15 reversed
         """
 
         if self.check_file() is False:
             return
 
+        try:
+            option_1, option_2 = options.split(" ")
+        except IndexError:
+            option_1 = options
+            option_2 = None
+
         is_reversed = False
-        frequency = self.file.get_frequency()
+        top = None
         output = ""
 
-        # Reverse the list if necessary.
-        if order in ["r", "reverse", "reversed"]:
+        if option_1.strip().isnumeric():
+            top = int(option_1.strip())
+            if option_2 in ["r", "reverse", "reversed"]:
+                is_reversed = True
+        elif option_1 in ["r", "reverse", "reversed"]:
             is_reversed = True
-            frequency = sorted(list(frequency), key=operator.itemgetter(1))
+
+        frequency = self.file.get_frequency(top=top, reverse=is_reversed)
 
         # Format the output to be easier on the eyes.
         for entry in frequency:
             # Calculate how many tabs to put in depending on the length of the word.
-            tabs = "\t" * (5 - (len(entry[0])+1) // 4)
+            tabs = "\t" * (5 - (len(entry[0])+1) // 4)  # BUG: still doesn't work properly with short words.
             output += f"{entry[0]}:{tabs}{entry[1]}\n"
 
-        print(f"Here is the frequency list of the file{', reversed' if is_reversed else ''}:\n"
+        print(f"Here is the frequency list for the selected document(s){', reversed' if is_reversed else ''}:\n"
               f"{output}")
+
+    def do_print(self, options):
+        """
+        Print all available stats on the currently selected document(s) to a file.
+        The file will appear in the current folder and will be overwritten if already present.
+        Options for the frequency list (number of items, reversed list) may be entered.
+            Examples:
+                uniQword, print
+                uniQword, print reversed
+                uniQword, print 15
+                uniQword, print 15 reversed
+        """
+
+        if self.check_file() is False:
+            return
+
+        try:
+            option_1, option_2 = options.split(" ")
+        except IndexError:
+            option_1 = options
+            option_2 = None
+
+        is_reversed = False
+        top = None
+
+        if option_1.strip().isnumeric():
+            top = int(option_1.strip())
+            if option_2 in ["r", "reverse", "reversed"]:
+                is_reversed = True
+        elif option_1 in ["r", "reverse", "reversed"]:
+            is_reversed = True
+
+        print(f"I printed data on {len(self.file)} file{'' if len(self.file) == 1 else 's'} on a file named "
+              f"{self.file.print_stats(frequency_top=top, frequency_reverse=is_reversed)}.")
 
     @staticmethod
     def do_bye(arg):
         """
-        Exits the program.
+        Exit the program.
             Example: uniQword, bye
         """
 
