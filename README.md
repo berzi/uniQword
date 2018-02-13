@@ -10,7 +10,9 @@ A simple program to count all the (unique) words contained in a text file and pe
 - Print stats to file on demand.
 
 ## Planned features:
+- Executable version.
 - More statistical data on words.
+- Performance improvements.
 
 # Supported formats:
 - Plain text (`.txt` etc).

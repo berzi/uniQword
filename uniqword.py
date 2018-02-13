@@ -82,27 +82,10 @@ class WordsFile:
             with open(self.file_path, "rb") as pdf:
                 reader = PyPDF2.PdfFileReader(pdf)  # Create a PDF handler.
                 if reader.isEncrypted and self.password:
-                    try:
-                        # Try to open the file with the given password.
-                        if reader.decrypt(self.password) == 0:
-                            raise DecryptionError
-                    except NotImplementedError:
-                        # If PyPDF can't handle the encryption algorithm, do it with a subprocess call.
-                        # Thanks to GitHub user ssokolow for this bit.
-                        # Make a temporary directory and file to work with safely.
-                        # BUG: No idea why it seems to raise a FileNotFound exception.
-                        # temporary_directory = tempdir.tempfile.mkdtemp(dir=os.path.dirname(self.file_path))
-                        # temporary_pdf = os.path.join(temporary_directory, '_temp.pdf')
-
-                        # subprocess.check_call(['qpdf', f"--password=", '--decrypt',
-                        #                        self.file_path, temporary_pdf])
-
-                        # shutil.move(temporary_pdf, self.file_path)
-
-                        # Clean up the temporary dir.
-                        # shutil.rmtree(temporary_directory)
-
-                        raise NotImplementedError  # For now, just pass the exception for the UI to handle.
+                    # Try to open the file with the given password.
+                    # Will raise NotImplementedError if the algorythm is not supported by PyPDF2.
+                    if reader.decrypt(self.password) == 0:
+                        raise DecryptionError
                 elif reader.isEncrypted and not self.password:
                     raise DecryptionError
 
@@ -148,15 +131,15 @@ class WordsFile:
         for word in filter(lambda w: w not in ["", "\n"], contents):
             # Get all alphanumeric characters, plus hyphens and underscores.
             word = [char for char in word if char.isalnum() or char in ["-", "_"]]
+            if len(word):
+                # Remove hyphens at start or end.
+                if word[0] == "-":
+                    word.pop(0)
+                if word[-1] == "-":
+                    word.pop(-1)
 
-            # Remove hyphens at start or end.
-            if word[0] == "-":
-                word.pop(0)
-            if word[-1] == "-":
-                word.pop(-1)
-
-            # Join together all letters of the word again and make a list of words.
-            all_words.append("".join(word))
+                # Join together all letters of the word again and make a list of words.
+                all_words.append("".join(word))
 
         self.file_words = all_words  # Store the list of words in an instance attribute for easy and cheap access.
         self.file_unique_words.update(all_words)  # Store all unique words in another attribute.
