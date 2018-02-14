@@ -75,7 +75,6 @@ class WordsFile:
         :raise ValueError: if the provided file is of an unsupported format.
         """
 
-        all_words = []
         contents = ""
 
         if self.file_path.endswith(".pdf"):
@@ -124,6 +123,22 @@ class WordsFile:
             # Join all words and lines with whitespace, which we'll use to separate individual words.
             contents = " ".join(contents)
 
+        all_words = self.purify_words(contents)
+
+        if len(all_words):  # Avoid adding empty contents.
+            self.file_words = all_words  # Store the list of words in an instance attribute for easy and cheap access.
+            self.file_unique_words.update(all_words)  # Store all unique words in another attribute.
+
+    @staticmethod
+    def purify_words(contents: str) -> list:
+        """
+        Clean up words by removing empty words, whitespace and symbols.
+        :param contents: the string to purify.
+        :return: a list of purified words.
+        """
+
+        all_words = []
+
         # Separate words.
         contents = contents.split(" ")
 
@@ -131,18 +146,20 @@ class WordsFile:
         for word in filter(lambda w: w not in ["", "\n"], contents):
             # Get all alphanumeric characters, plus hyphens and underscores.
             word = [char for char in word if char.isalnum() or char in ["-", "_"]]
-            if len(word):  # Ensure we're not working on an empty word.
+            while len(word):  # Ensure we're not working on an empty word.
                 # Remove hyphens at start or end.
                 if word[0] == "-":
                     word.pop(0)
+                    continue
                 if word[-1] == "-":
                     word.pop(-1)
+                    continue
 
                 # Join together all letters of the word again and make a list of words.
                 all_words.append("".join(word))
+                break
 
-        self.file_words = all_words  # Store the list of words in an instance attribute for easy and cheap access.
-        self.file_unique_words.update(all_words)  # Store all unique words in another attribute.
+        return all_words
 
     def get_words(self) -> Optional[list]:
         """
