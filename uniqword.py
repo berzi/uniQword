@@ -9,9 +9,6 @@ import docx  # Used to read docx files.
 import zipfile  # This and next: used to read odt files.
 from lxml import etree
 import os  # Used for directory-wide operations.
-# import shutil  # This and following: used to decode problematic passworded PDFs.
-# import tempdir
-# import subprocess
 import collections  # Used for frequency counts.
 
 
@@ -647,60 +644,6 @@ class CommandLineInterface(cmd.Cmd):
 
         del arg
         print("Here are all the files we're working on:\n"+"\n".join([entry for entry in self.file.get_files()]))
-
-    def do_list(self, target: str):
-        """
-        Print a list of all requested elements in the current file in no particular order (it can be long!).
-        You can request: words, unique words.
-            Examples:
-                uniQword, list words
-                uniQword, list unique words
-                uniQword, list uniques
-                uniQword, list w
-                uniQword, list u
-        """
-
-        if self.check_file() is False:
-            return
-
-        output = ""
-        words = self.file.get_collective_words()
-        unique_words = self.file.get_collective_unique_words()
-
-        if target in ["w", "words"]:
-            line = ""
-            for index, word in enumerate(words):
-                line += word
-                if len(line) >= 72:  # Limit the line length of each line to 72 chars.
-                    line += "\n"
-                    output += line
-                    line = ""
-                elif index == len(words) - 1:  # If we're done adding words.
-                    output += line
-                else:  # Add a comma.
-                    line += ", "
-
-            output = f"Here are all the words in the file:\n{output}"
-        elif target in ["u", "unique", "uniques", "unique words"]:
-            line = ""
-            for index, word in enumerate(unique_words):
-                line += word
-                if len(line) >= 72:  # Limit the line length of each line to 72 chars.
-                    line += "\n"
-                    output += line
-                    line = ""
-                elif index == len(unique_words) - 1:  # If we're done adding words.
-                    output += line
-                else:  # Add a comma.
-                    line += ", "
-
-            output = f"Here are all the unique words in the file:\n{output}"
-        else:
-            print("Please specify something to list!")
-            self.onecmd("help list")
-            return
-
-        print(output)
 
     def do_count(self, target: str):
         """
