@@ -5,3 +5,10 @@ test_**
 tmp**
 setup.py
 discontinued.py
+uniqword.spec
+uniqword.ico
+dist
+dist\**
+notes.txt
+build
+build\**
