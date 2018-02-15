@@ -331,7 +331,6 @@ class FilesCollection:
         :return: the list of all files added successfully.
         """
 
-        # TODO: optimise performance by packing/unpacking properly etc.
         if not len(directories):
             raise ValueError
 
@@ -367,7 +366,6 @@ class FilesCollection:
         :return: the list of all files successfully removed.
         """
 
-        # TODO: optimise performance by packing/unpacking properly etc.
         if not len(directories):
             raise ValueError
 
