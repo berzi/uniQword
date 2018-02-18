@@ -1,16 +1,16 @@
 """uniQword is a program to read and count words from one or multiple files and perform some statistical operations."""
 
-from typing import Optional  # Used for type hinting.
 import cmd  # Used for the command-line interface.
-import time  # Used by the command-line interface for sleep() when bidding farewell to the user.
 import codecs  # Used to avoid codec problems when reading files.
+import collections  # Used for frequency counts.
+import os  # Used for directory-wide operations.
+import time  # Used by the command-line interface for sleep() when bidding farewell to the user.
+import zipfile  # Used to read odt files.
+from typing import Optional  # Used for type hinting.
+
 import PyPDF2  # Used to read PDF files.
 import docx  # Used to read docx files.
-import zipfile  # This and next: used to read odt files.
-from lxml import etree
-import os  # Used for directory-wide operations.
-import collections  # Used for frequency counts.
-
+from lxml import etree  # Used to read odt files.
 
 # All currently accepted formats for files to examine.
 SUPPORTED_FORMATS = (".txt", ".docx", ".odt", ".pdf")
@@ -445,6 +445,7 @@ class FilesCollection:
         output = output[:top]
 
         return output
+        # TODO: raise limit to include all but the less significant words.
 
     def print_stats(self, *, frequency_top: int = 10, frequency_reverse: bool = False) -> str:
         """
@@ -564,6 +565,7 @@ class CommandLineInterface(cmd.Cmd):
                   "Qword, add myfile.txt myp@ssw0rd")
         except NotImplementedError:
             print("I couldn't decrypt the file. Please retry with a non-passworded copy.")
+        # TODO: unify add_file and add_dir. into add
 
     def do_remove_file(self, target: str):
         """Remove a file from those currently in use. You can remove one file at a time or all at once.
@@ -671,7 +673,7 @@ class CommandLineInterface(cmd.Cmd):
             print("Please specify something to count!")
             self.onecmd("help count")
 
-    def do_frequency(self, options: str= ""):
+    def do_frequency(self, options: str=""):
         """
         Print the frequency list of the current file. It can be printed in reverse and the maximum amount of results can
         be trimmed. By default, the first 10 results will be printed.
