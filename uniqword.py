@@ -15,6 +15,9 @@ from lxml import etree  # Used to read odt files.
 # All currently accepted formats for files to examine.
 SUPPORTED_FORMATS = (".txt", ".docx", ".odt", ".pdf")
 
+# The default number of elements for frequency lists if unspecified by user input.
+FREQUENCY_TOP = 20
+
 
 class DecryptionError(Exception):
     """Catches the event in which an encrypted file is provided with a wrong password or none at all."""
@@ -316,10 +319,11 @@ class FilesCollection:
 
                 del self.files[file]  # Delete the file itself from the collection.
                 removed += 1
-            except KeyError:
-                continue  # Suppress the exception if no file with the given name is found.
+            finally:
+                # Clean up the cache if at least one file was correctly deleted.
+                if removed > 0:
+                    self.reset_values()
 
-        self.reset_values()
         return removed
 
     def add_directories(self, *directories: str) -> list:
@@ -412,7 +416,7 @@ class FilesCollection:
         """:return: the count of the occurrences of the word in the collection."""
         return self.collective_specific_count.setdefault(word, self.collective_words.count(word))
 
-    def get_frequency(self, top: int, reverse: bool = False) -> collections.Counter:
+    def get_frequency(self, top: int=FREQUENCY_TOP, reverse: bool = False) -> collections.Counter:
         """
         Get the frequency list of all words in the collection.
         :param top: the amount of words to return at most. Defaults to 10.
@@ -420,8 +424,8 @@ class FilesCollection:
         :return: a counter ["word"] = occurrences in descending order.
         """
 
-        if not top:
-            top = 10
+        if top is None:
+            top = FREQUENCY_TOP
 
         if self.collective_frequency_list is None:
             frequency_counter = collections.Counter()
@@ -445,9 +449,8 @@ class FilesCollection:
         output = output[:top]
 
         return output
-        # TODO: raise limit to include all but the less significant words.
 
-    def print_stats(self, *, frequency_top: int = 10, frequency_reverse: bool = False) -> str:
+    def print_stats(self, *, frequency_top: int = FREQUENCY_TOP, frequency_reverse: bool = False) -> str:
         """
         Print all useful stats to a file.
         :return: the name of the file.
@@ -496,7 +499,7 @@ class FilesCollection:
 class CommandLineInterface(cmd.Cmd):
     """Manage the command-line interface."""
     intro = "Welcome. I am uniQword, I can count all the words in your files and more.\n" \
-            "To begin, select a file with the \"add_file\" or \"add_dir\" command or type ? to read a list of commands."
+            "To begin, select a file with the \"add\" command or type ? to read a list of commands."
     prompt = "uniQword, "
     file = FilesCollection()
 
@@ -529,159 +532,160 @@ class CommandLineInterface(cmd.Cmd):
         print(f"I don't know of a command called \"{command}\".")
         CommandLineInterface.emptyline()
 
-    def do_add_file(self, user_entry: str):
+    def do_add(self, user_entry: str):
         """
-        Select a file to operate on. You can select multiple items one at a time.
-        Please provide a password if needed.
-            Examples:
-                uniQword, add_file myfile.pdf
-                uniQword, add_file passwordedfile.pdf myp@ssw0rd
+            Select a file or directory to operate on. You can select multiple items one at a time.
+            Please provide a password if needed. Passworded files will be ignored when adding an entire directory.
+            To add all compatible files in the current directory, type .
+                Examples:
+                    uniQword, add .
+                    uniqword, add mydir\folder
+                    uniQword, add myfile.pdf
+                    uniQword, add passwordedfile.pdf myp@ssw0rd
         """
 
-        password = ""
-        try:
-            file, password = user_entry.split(" ")
-        except ValueError:
-            file = user_entry
+        # Identify if the user provided any input at all.
+        if not user_entry:
+            print("Plase specify something to add! Type \"uniQword, help add\" to receive help.")
+            return
 
-        try:
-            self.file.add_files(WordsFile(file, password))
+        user_entry.strip()  # Remove trailing spaces.
 
-            print(f"I selected the file: {user_entry}.")
-        except FileNotFoundError:
-            if len(file):
-                print("I couldn't find the file you asked for. Please try again.")
-            else:
-                print("I need a file name in order to add it!")
-                self.onecmd("help add")
-        except ValueError:
-            print("I couldn't decode the file. Please save it in UTF-8 before retrying.")
-        except TypeError:
-            print(f"I cannot use this file. Please convert it to one of the supported formats: "
-                  f"{', '.join(SUPPORTED_FORMATS)}.")
-        except DecryptionError:
-            print("I need the correct password for this file!\n"
-                  "Leave an empty space after the file name and type the password, example:\n"
-                  "Qword, add myfile.txt myp@ssw0rd")
-        except NotImplementedError:
-            print("I couldn't decrypt the file. Please retry with a non-passworded copy.")
-        # TODO: unify add_file and add_dir. into add
+        # Identify if the user asked for a directory or a file.
+        if user_entry == "." or "." not in user_entry:
+            try:
+                added = [file for file in self.file.add_directories(user_entry)]
+                if len(added):
+                    print(f"I successfully added the following file{'' if len(added) == 1 else 's'}:\n" +
+                          "\n".join(added))
+                else:
+                    print("I couldn't find any compatible file. Please remember to add passworded files individually.")
+            except FileNotFoundError or NotADirectoryError:
+                print("I couldn't find the specified directory.")
+        else:
+            try:
+                file, password = user_entry.split(" ")
+            except ValueError:
+                file = user_entry
+                password = ""
 
-    def do_remove_file(self, target: str):
-        """Remove a file from those currently in use. You can remove one file at a time or all at once.
+            try:
+                self.file.add_files(WordsFile(file, password))
+
+                print(f"I selected the file: {user_entry}.")
+            except FileNotFoundError:
+                if len(file):
+                    print("I couldn't find the file you asked for. Please try again.")
+                else:
+                    print("I need a file name in order to add it!")
+                    self.onecmd("help add")
+            except ValueError:
+                print("I couldn't decode the file. Please save it in UTF-8 before retrying.")
+            except TypeError:
+                print(f"I cannot use this file. Please convert it to one of the supported formats: "
+                      f"{', '.join(SUPPORTED_FORMATS)}.")
+            except DecryptionError:
+                print("I need the correct password for this file!\n"
+                      "Leave an empty space after the file name and type the password, example:\n"
+                      "uniQword, add myfile.txt myp@ssw0rd")
+            except NotImplementedError:
+                print("I couldn't decrypt the file. Please retry with a non-passworded copy.")
+
+    def do_remove(self, user_entry: str):
+        """
+        Remove a file or directory from use.
+        Use . to remove the current directory only, and * to remove all files and directory.
+        Type "uniQword, files" to read a list of the files currently in use.
             Examples:
-                uniQword, remove_file myfile.txt
-                uniQword, remove_file all files
-                uniQword, remove_file *
+                uniQword, remove .
+                uniQword, remove myfolder
+                uniQword, remove mydir\myfolder
+                uniQword, remove myfile.txt
+                uniQword, remove *
         """
 
         if not self.file:
-            print("There is no file to remove.")
+            print("There are no files to remove.")
             return
 
-        if not target:
+        if not user_entry:
             print("Please select something to remove.")
             self.onecmd("help remove")
             return
 
-        if target in ["all files", "*"]:
+        user_entry.strip()
+
+        # Check if the user wants to clear the list.
+        if user_entry in ["*"]:
             removed = 0
             for file_path in self.file.get_files():
                 removed += self.file.remove_files(file_path)
 
             print(f"I removed {'the only file' if removed == 1 else 'all '+str(removed)+' files'} from the list.")
-        else:
-            self.file.remove_files(target)
-            print(f"I removed the file \"{target}\" if it was present in the list.")
+            return
 
-    def do_add_dir(self, target: str):
-        """
-        Add all the files in a directory. Passworded or incompatible files will be ignored.
-        Use "." to add the current directory.
-            Examples:
-                uniQword, add_dir myfolder
-                uniQword, add_dir folder\myfolder
-                uniQword, add_dir .
-        """
-
+        # Try to remove a file.
         try:
-            print("I successfully added the following files:\n" +
-                  "\n".join([file for file in self.file.add_directories(target)]))
+            self.file.remove_files(user_entry)
+            print(f"I removed the file \"{user_entry}\" from the list.")
         except ValueError:
-            print("Please specify a folder to add!")
-        except FileNotFoundError:
-            print("I couldn't find the specified directory.")
-        except NotADirectoryError:
-            print("You have to specify a directory, not a file.\n"
-                  "Use uniQword, add_file to add a file.")
-
-    def do_remove_dir(self, target: str):
-        """
-        Remove all files from a previously added directory. Files that were added individually must be
-        removed individually even if they are present in the directory to remove.
-            Examples:
-                uniQword, remove_dir myfolder
-                uniQword, remove_dir folder\myfolder
-                uniQword, remove_dir .
-        """
-
-        try:
-            removed = self.file.remove_directories(target)
-            if len(removed):
-                print("I successfully removed the following files:\n" +
-                      "\n".join([file for file in removed]))
-            else:
-                print("I couldn't remove the directory. Make sure you type the whole path correctly.\n"
-                      "Do uniQword, files to check which file paths I'm currently using.")
-        except ValueError:
-            print("Please specify a folder to remove!\n"
-                  "Do uniQword, files for a list of currently selected files and directories.")
+            # If it doesn't work, it may be a directory.
+            try:
+                removed = self.file.remove_directories(user_entry)
+                if len(removed):
+                    print(f"I successfully removed the following file{'' if len(removed) == 1 else 's'}:\n" +
+                          "\n".join([file for file in removed]))
+                else:
+                    print("I couldn't remove any file. Make sure you type the whole path correctly.\n"
+                          "Do \"uniQword, files\" to check which file paths I'm currently using.")
+            except ValueError:
+                print("Please specify a valid file or folder to remove!\n"
+                      "Do \"uniQword, files\" for a list of currently selected files and directories.")
 
     def do_files(self, arg):
-        """
-        List all files currently being processed.
-        """
+        """List all files currently being processed."""
 
         del arg
         print("Here are all the files we're working on:\n"+"\n".join([entry for entry in self.file.get_files()]))
 
-    def do_count(self, target: str):
+    def do_count(self, user_entry):
         """
-        Count how many of the specified element the file contains. You can count: *words, *unique words, specific words.
-        To count specific words, write word, then the word you want to count.
-            Examples:
-                uniQword, count words
-                uniQword, count unique words
-                uniQword, count word banana
-                uniQword, count w banana
+        Count the number of words and unique words in the currently selected files.
+        Or count how many times a specific word occurs in the currently selected files.
+            Example:
+                uniQword, count
+                uniQword, count banana
         """
 
         if self.check_file() is False:
             return
 
-        if target in ["*", "words", "w"]:
-            amount = self.file.count_collective_words()
-            print(f"The file contains: {amount:d} word{'' if amount == 1 else 's'} in total.")
-        elif target in ["unique", "uniques", "unique words", "u"]:
-            amount = self.file.count_collective_unique_words()
-            print(f"The file contains: {amount:d} unique word{'' if amount == 1 else 's'} in total.")
-        elif " " in target and target.split(" ")[0] in ["w", "word", "specific word"]:
-            amount = self.file.count_collective_word(target.split(" ")[1])
-            print(f"The file contains: {amount:d} instance{'' if amount == 1 else 's'}"
-                  f" of the word \"{target.split(' ')[1]}\".")
-        else:
-            print("Please specify something to count!")
-            self.onecmd("help count")
+        user_entry.strip()
+
+        # Check if the user wants to count a specific word.
+        if user_entry:
+            occurrences = self.file.count_collective_word(user_entry)
+
+            print(f"The file{'' if len(self.file) == 1 else 's'} contain{'' if len(self.file) == 1 else 's'} "
+                  f"{occurrences} occurrences of the word \"{user_entry}\".")
+            return
+
+        total_words = self.file.count_collective_words()
+        total_uniques = self.file.count_collective_unique_words()
+
+        print(f"The file{'' if len(self.file) == 1 else 's'} contain{'' if len(self.file) == 1 else 's'} "
+              f"{total_words} total words, {total_uniques} of which unique "
+              f"({round((total_uniques / total_words) * 100, 2)}%).")
 
     def do_frequency(self, options: str=""):
-        """
+        f"""
         Print the frequency list of the current file. It can be printed in reverse and the maximum amount of results can
-        be trimmed. By default, the first 10 results will be printed.
+        be trimmed. By default, the first {str(FREQUENCY_TOP)} results will be printed.
             Examples:
                 uniQword, frequency
                 uniQword, frequency reversed
-                uniQword, frequency 15
-                uniQword, frequency 15 reversed
+                uniQword, frequency 50
+                uniQword, frequency 50 reversed
         """
 
         if self.check_file() is False:
@@ -706,14 +710,16 @@ class CommandLineInterface(cmd.Cmd):
 
         frequency = self.file.get_frequency(top=top, reverse=is_reversed)
 
+        # Stuff for string padding.
+        longest_word = max([len(word[0]) for word in frequency])
+
         # Format the output to be easier on the eyes.
         for entry in frequency:
             # Calculate how many tabs to put in depending on the length of the word.
-            tabs = "\t"*(6 - (len(entry[0])//4))
-            output += f"{entry[0]}:{tabs}{entry[1]}\n"
+            output += f"{entry[0]:{longest_word+4}}{entry[1]}\n"
 
-        print(f"Here is the frequency list for the selected document(s){', reversed' if is_reversed else ''}:\n"
-              f"{output}")
+        print(f"Here are the {'least' if is_reversed else 'most'} common {str(top) if top else str(FREQUENCY_TOP)} "
+              f"elements for the selected document{'' if len(self.file) == 1 else 's'}:\n{output}")
 
     def do_print(self, options):
         """
