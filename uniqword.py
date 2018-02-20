@@ -417,9 +417,9 @@ class FilesCollection:
         return self.collective_specific_count.setdefault(word, self.collective_words.count(word))
 
     def get_frequency(self, top: int=FREQUENCY_TOP, reverse: bool = False) -> collections.Counter:
-        """
+        f"""
         Get the frequency list of all words in the collection.
-        :param top: the amount of words to return at most. Defaults to 10.
+        :param top: the amount of words to return at most. Defaults to {str(FREQUENCY_TOP)}. 0 outputs the whole list.
         :param reverse: whether the frequency list should show the least common items. Defaults to False.
         :return: a counter ["word"] = occurrences in descending order.
         """
@@ -446,11 +446,14 @@ class FilesCollection:
         if reverse:
             output.reverse()
 
+        if top == 0:
+            top = len(output)
+
         output = output[:top]
 
         return output
 
-    def print_stats(self, *, frequency_top: int = FREQUENCY_TOP, frequency_reverse: bool = False) -> str:
+    def print_stats(self, *, frequency_top: int=0, frequency_reverse: bool = False) -> str:
         """
         Print all useful stats to a file.
         :return: the name of the file.
@@ -478,10 +481,18 @@ class FilesCollection:
         # Add stats for frequency.
         words = self.get_frequency(top=frequency_top, reverse=frequency_reverse)
         output = []
-        for word in words:
-            # Base number of tabs minus the length of the word in tabs.
-            tabs = "\t" * (6 - (len(word[0]) // 3))
-            output.append(f"{word[0]}:{tabs}{word[1]}")
+
+        # Stuff for string padding.
+        longest_word = max([len(word[0]) for word in words])
+        if longest_word + 4 <= 60:
+            longest_word += 4
+        else:
+            longest_word = 60
+
+        # Format the output to be easier on the eyes.
+        for entry in words:
+            # Calculate how many tabs to put in depending on the length of the word.
+            output.append(f"{entry[0]:{longest_word}}{entry[1]}")
 
         stats += "{rev} frequent {amount} {plural}:\n{freq}".format(
             rev="Least" if frequency_reverse else "Most",
@@ -677,12 +688,14 @@ class CommandLineInterface(cmd.Cmd):
               f"{total_words} total words, {total_uniques} of which unique "
               f"({round((total_uniques / total_words) * 100, 2)}%).")
 
-    def do_frequency(self, options: str=""):
+    def do_frequency(self, options: str):
         f"""
         Print the frequency list of the current file. It can be printed in reverse and the maximum amount of results can
-        be trimmed. By default, the first {str(FREQUENCY_TOP)} results will be printed.
+        be trimmed. By default, the first {str(FREQUENCY_TOP)} results will be printed. Input * to print all results.
             Examples:
                 uniQword, frequency
+                uniQword, frequency *
+                uniQword, frequency * reversed
                 uniQword, frequency reversed
                 uniQword, frequency 50
                 uniQword, frequency 50 reversed
@@ -693,6 +706,7 @@ class CommandLineInterface(cmd.Cmd):
 
         try:
             option_1, option_2 = options.split(" ")
+            option_2.strip()
         except ValueError:
             option_1 = options
             option_2 = None
@@ -700,23 +714,34 @@ class CommandLineInterface(cmd.Cmd):
         is_reversed = False
         top = None
         output = ""
+        option_1.strip()
 
-        if option_1.strip().isnumeric():
+        if option_1.isnumeric():
             top = int(option_1.strip())
+            if option_2 in ["r", "reverse", "reversed"]:
+                is_reversed = True
+        elif "*" in option_1:
+            top = 0
             if option_2 in ["r", "reverse", "reversed"]:
                 is_reversed = True
         elif option_1 in ["r", "reverse", "reversed"]:
             is_reversed = True
+            if "*" in option_2:
+                top = 0
 
         frequency = self.file.get_frequency(top=top, reverse=is_reversed)
 
         # Stuff for string padding.
         longest_word = max([len(word[0]) for word in frequency])
+        if longest_word+4 <= 60:
+            longest_word += 4
+        else:
+            longest_word = 60
 
         # Format the output to be easier on the eyes.
         for entry in frequency:
             # Calculate how many tabs to put in depending on the length of the word.
-            output += f"{entry[0]:{longest_word+4}}{entry[1]}\n"
+            output += f"{entry[0]:{longest_word}}{entry[1]}\n"
 
         print(f"Here are the {'least' if is_reversed else 'most'} common {str(top) if top else str(FREQUENCY_TOP)} "
               f"elements for the selected document{'' if len(self.file) == 1 else 's'}:\n{output}")
@@ -739,21 +764,21 @@ class CommandLineInterface(cmd.Cmd):
 
         try:
             option_1, option_2 = options.split(" ")
+            option_2.strip()
         except ValueError:
             option_1 = options
             option_2 = None
 
         is_reversed = False
-        top = None
+        top = 0
+        option_1.strip()
 
-        if option_1.strip().isnumeric():
+        if option_1.isnumeric():
             top = int(option_1.strip())
             if option_2 in ["r", "reverse", "reversed"]:
                 is_reversed = True
         elif option_1 in ["r", "reverse", "reversed"]:
             is_reversed = True
-            if option_2.strip().isnumeric():
-                top = int(option_2.strip())
 
         print(f"I printed data on {len(self.file)} file{'' if len(self.file) == 1 else 's'} on a file named "
               f"{self.file.print_stats(frequency_top=top, frequency_reverse=is_reversed)}.")
