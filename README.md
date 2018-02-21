@@ -22,6 +22,9 @@ You can use the `help` command at any moment to learn about the functionalities 
 - Recognise verb conjugations.
 - More statistical data on words.
 
+# Known limitations/bugs
+- Currently, words containing apostrophes will be counted as two separate words. Example: `C'thulhu` = `C`, `thulhu`.
+
 # Supported formats:
 - Plain text (`.txt` etc).
 - `.pdf` (including encrypted).

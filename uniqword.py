@@ -6,6 +6,7 @@ import collections  # Used for frequency counts.
 import os  # Used for directory-wide operations.
 import time  # Used by the command-line interface for sleep() when bidding farewell to the user.
 import zipfile  # Used to read odt files.
+import re  # Used for text parsing.
 from typing import Optional  # Used for type hinting.
 
 import PyPDF2  # Used to read PDF files.
@@ -17,6 +18,15 @@ SUPPORTED_FORMATS = (".txt", ".docx", ".odt", ".pdf")
 
 # The default number of elements for frequency lists if unspecified by user input.
 FREQUENCY_TOP = 20
+
+# Symbols to accept within words.
+ACCEPT = ("-", "_")
+
+# Subset of ACCEPT to remove from start/end of words.
+REMOVE = ("-",)
+
+# Symbols (regex) to count as word separators.
+SEPARATORS = r"\s'"
 
 
 class DecryptionError(Exception):
@@ -140,18 +150,18 @@ class WordsFile:
         all_words = []
 
         # Separate words.
-        contents = contents.split(" ")
+        contents = re.split(r"["+SEPARATORS+r"]", contents)
 
         # Filter out "empty" words and filter characters inside words to make sure we only get real(istic) words.
         for word in filter(lambda w: w not in ["", "\n"], contents):
             # Get all alphanumeric characters, plus hyphens and underscores.
-            word = [char for char in word if char.isalnum() or char in ["-", "_"]]
+            word = [char for char in word if char.isalnum() or char in ACCEPT]
             while len(word):  # Ensure we're not working on an empty word.
                 # Remove hyphens at start or end.
-                if word[0] == "-":
+                if word[0] in REMOVE:
                     word.pop(0)
                     continue
-                if word[-1] == "-":
+                if word[-1] in REMOVE:
                     word.pop(-1)
                     continue
 
